@@ -1,0 +1,51 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "default_agent": "workflow-orchestrator",
+  "agent": {
+    "workflow-orchestrator": {
+      "description": "Coordinates approved work units and delegates evidence, planning, delivery, and independent checks. Use as the primary agent for this workflow.",
+      "mode": "primary",
+      "model": "provider/REPLACE_WITH_ORCHESTRATOR_MODEL",
+      "prompt": "{file:./.agents/roles/orchestrator.md}",
+      "permission": {
+        "edit": "allow",
+        "bash": "allow",
+        "task": {
+          "*": "deny",
+          "workflow-investigator": "allow",
+          "workflow-planner": "allow",
+          "workflow-producer": "allow",
+          "workflow-verifier": "allow"
+        }
+      }
+    },
+    "workflow-investigator": {
+      "description": "Investigates a bounded unit and writes evidence only to its own attempt report. Use for research and codebase reconnaissance.",
+      "mode": "subagent",
+      "model": "provider/REPLACE_WITH_INVESTIGATOR_MODEL",
+      "prompt": "{file:./.agents/roles/investigator.md}",
+      "permission": { "edit": "allow", "bash": "allow", "task": "deny" }
+    },
+    "workflow-planner": {
+      "description": "Frames units, compares choices, prepares child briefs, or reconciles results as sole writer of assigned records.",
+      "mode": "subagent",
+      "model": "provider/REPLACE_WITH_PLANNER_MODEL",
+      "prompt": "{file:./.agents/roles/planner.md}",
+      "permission": { "edit": "allow", "bash": "allow", "task": "deny" }
+    },
+    "workflow-producer": {
+      "description": "Produces deliverables within one approved unit's owned outputs and saves an attempt report.",
+      "mode": "subagent",
+      "model": "provider/REPLACE_WITH_PRODUCER_MODEL",
+      "prompt": "{file:./.agents/roles/producer.md}",
+      "permission": { "edit": "allow", "bash": "allow", "task": "deny" }
+    },
+    "workflow-verifier": {
+      "description": "Independently checks a stable named output against its criteria and writes only an attempt report.",
+      "mode": "subagent",
+      "model": "provider/REPLACE_WITH_VERIFIER_MODEL",
+      "prompt": "{file:./.agents/roles/verifier.md}",
+      "permission": { "edit": "allow", "bash": "allow", "task": "deny" }
+    }
+  }
+}

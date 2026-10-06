@@ -1,0 +1,4 @@
+# Disposable local runs of the workflow in this source kit; do not copy this
+# ignore rule into an installed endeavor if its briefs should be durable.
+.workflow/
+__pycache__/

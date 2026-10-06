@@ -1,0 +1,19 @@
+---
+name: investigate-unit
+description: Gather and check evidence for one bounded work-unit question. Use when assumptions, options, dependencies, or current behavior need investigation.
+---
+
+# Investigate a unit
+
+**Inputs:** scoped question, unit/revision and authorization (initial root without brief/checkpoint: allocated root ID, bounded goal, constraints/exclusions and framing basis), decisions, source paths, prior evidence links, assigned attempt/report path.
+
+**Procedure:**
+1. Check authority: initial-root bounded investigation may precede its first brief/checkpoint using the caller's framing basis; child entry requires the parent's checkpoint naming its current revision. This distinct investigator invocation belongs to the actual outcome unit, not a new investigation phase/unit or recursive investigator chain.
+2. Form a few discriminating questions and inspect relevant primary sources. Record source identity/current relevance, material evidence and counterevidence; test counterexamples rather than merely confirming the first hypothesis. Each new child validates/reuses parent evidence for its own scope rather than treating the parent report as its investigator.
+3. Check coverage against current scope/criteria, inputs, applicable decisions, material assumptions, dependencies and source volatility. Separate observations, sourced evidence, inference and unknowns; explain implications without making an unapproved consequential choice. Same-unit fresh evidence may be reused; session/role changes, routine retries, first approval or age alone do not force a repeat. Missing/inaccessible/wrong-unit/uncovered or contradicted evidence and changed material uncertainty/dependencies require proportionate renewed same-unit investigation. Retain/link old reports and state revalidated/replaced coverage; renewed evidence cannot supply missing revision approval.
+4. Reassess semantic sizing at this unit's distinct invocation per protocol Work split: initial root frames its first horizon; each authorized new unit tests meaningful finer boundaries using its actual evidence, not its inherited leaf label. Compare plausible vectors including no-split using independent completion, user review/acceptance, material choice/uncertainty, evidence/check and isolated retry needs. Shared sources/runtime do not erase independent outcomes; file/layer/phase fragments are not outcomes. Report selected recommendation, alternatives/reasons, dependencies/readiness, parent contribution and check horizons for the next useful set, or one adequate completion/review/check horizon with manageable uncertainty and why finer splitting adds coupling rather than useful acceptance/retry. Unresolved sizing stays provisional with question/evidence/owner/action. Recommend bounded parent preparation and explicit named checkpoints if children are warranted; do not enter descendants or construct a speculative hierarchy to settle sizing.
+5. Supply proportionate falsifiable checks, review blockers and a bounded next action. The entry packet covers authority/framing basis; material evidence/counterevidence; questions/unknowns; coverage/dependencies; approach/sizing; checks. A tiny leaf can cover it in a short sourced paragraph; depth follows uncertainty, not a mandatory long report. Link the accessible own-unit report for downstream caller/planner/producer consumption under the protocol's gate.
+
+**Output:** own per-attempt report with source references, confidence, options or next investigation; compact receipt per `.agents/workflow/protocol.md`. Investigators edit no other files.
+
+**Stop/escalate:** required source unavailable, authorization mismatch, material changed boundary, or evidence contradicting an approved decision. Mark `blocked` or `needs-decision` and explain in the report.
