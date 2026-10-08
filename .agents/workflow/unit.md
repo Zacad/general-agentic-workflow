@@ -1,4 +1,4 @@
-# U-0001 — <bounded outcome>
+# <understandable bounded outcome and context> — U-0001
 
 - Parent: root | U-...
 - Revision: 1
@@ -27,17 +27,21 @@
 | <plausible independent outcome boundary or no-split> | <selected / rejected / unresolved; current source-based comparison> |
 
 - Selected vector and reason: <why this current completion/review/check/retry horizon fits actual outcomes and dependencies; source links>
+- Broad horizon / appropriate structure: <meaningful high-level outcomes after adequate requirements; useful proposed project-specific taxonomy and relationships, alternatives/open structure questions. Preliminary during root framing; taxonomy is not split/leaf proof and has no fixed universal levels.>
+- Selected delivery group: <understandable name, bounded scope and paths explicitly chosen with user; exact selection response/reference; pending if not yet chosen. Coordinating brief path if this brief only references a cross-parent group. Selection does not authorize unit entry.>
+- Preparation wave / delivery readiness: <current level, completed sibling assessment with evidence, pending siblings before deeper preparation/entry, selected next horizon and one bounded action. Each selected path must reach an evidenced justified delivery leaf or explicit deferred/blocked disposition before dependent delivery; discovery/requirements/structure/preparation outputs establishing readiness are exempt under their own authority. Tiny no-split groups may use concise prose.>
 
 ### Current proposed children, or justified leaf
 
-| Proposed child / bounded outcome and boundaries | Material inputs / dependencies | Readiness questions / owner and next action | Contribution to parent criteria | Completion / review / check horizon |
+| Outcome name/context, proposed child ID / boundaries | Material inputs / dependencies | Readiness questions / owner and next action | Contribution to parent criteria | Completion / review / check horizon and finer-boundary assessment |
 | --- | --- | --- | --- | --- |
 | <allocated ID if available; proposed, not authorized> | <settled / pending dependencies and sources> | <ready for preparation/checkpoint, or provisional with specific gap> | <actual parent criterion/result advanced> | <observable result, review boundary and failure-detecting method> |
 
-<!-- Use the applicable branch, replacing unused placeholders. Only the next useful horizon is drafted; child entry needs its named current-revision checkpoint after parent preparation. Each child brief has its own assessment, rechecked by its distinct investigator after authorization. -->
+<!-- Use the applicable branch, replacing unused placeholders. Address relevant siblings at this selected level before deeper preparation/entry. Only the next useful wave is drafted, not the whole project; child entry needs its named current-revision checkpoint in its appropriate parent after preparation. Each child brief has its own assessment, rechecked by its distinct investigator after authorization. Uneven depths are valid. -->
 
 - No children: <explicit `none` if selected; this unit's single adequate observable completion/review/check horizon, manageable uncertainty/dependencies, and specifically why finer splitting adds coupling rather than useful independent acceptance/check/retry. Few files, one producer or shared runtime is insufficient.>
 - Unresolved sizing: <if unresolved, provisional question, evidence needed, owner and bounded next action; uncertainty is not a leaf or readiness.>
+- Deferred / blocked paths: <retained requirement/outcome; reason/readiness gap; dependency impact and affected delivery; owner/next action; reconsideration trigger/basis. Explicit none when applicable; unexplored is not deferred, deferral is not exclusion or parent completion.>
 
 ## Acceptance and check
 
@@ -66,6 +70,7 @@
 ## Relationships
 
 - Dependencies: none | U-...
+- Group / wave navigation: <link coordinating Work split and participating parents when needed; one group-readiness authority, no mirrored status tracker. Exact child checkpoints remain in appropriate parents with cross-links; current wave/deferrals and next action stay resumable from files.>
 - Requirements review / open dependencies when applicable: <link exact presented version/statements, actual response/reference and scope, separately from adequacy/readiness; pending/partial/declined and blocked dependent items with owner/action. Review never authorizes unnamed child entry or material revision.>
 - Children: none | U-... (draft / authorized as recorded below)
 - Applicable decisions: none | D-... (including inherited and exceptions)
@@ -74,6 +79,6 @@
 
 ## Checkpoints
 
-<!-- Append; never silently rewrite approvals. In a root, the initial entry authorizes the root itself. In a parent, entries name approved children. -->
+<!-- Append; never silently rewrite approvals. User-visible requests lead with outcome names/context, then exact IDs/revisions. In a root, the initial entry authorizes the root itself. In a parent, entries name approved children; cross-parent groups require appropriate-parent entries, not inherited group approval. -->
 
 - CP-01: <date>; user approval: <exact quote or durable reference>; authorizes: U-0001@revision-1; conditions: none | ...
