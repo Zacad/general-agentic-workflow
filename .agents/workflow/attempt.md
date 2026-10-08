@@ -3,15 +3,18 @@
 - Role / skill(s): ...
 - Brief revision and authorization checked (or initial-root framing basis; no brief/checkpoint yet): ...
 - Assignment and owned output paths: ...
+- Investigator scope: <same unit/current revision or initial-root basis; principal question/coverage bounds; sources/version/context and retained-report applicability; dependencies/cross-dimension owner; expected evidence/checks; separate report/answer paths and stops. Caller orchestrator assigns; no worker delegation or automatic dimension units.>
 - Status: done | blocked | needs-decision | failed
 - Input paths / stable output or attempt checked: ...
-- Downstream planner/producer: <consumed own-unit investigator report path, distinct attempt identity, current applicability and gaps; link retained/revalidated/replaced evidence if relevant>
+- Downstream planner/producer: <actually consumed applicable own-unit primary report set, distinct attempt identities, material cited evidence and assigned planner integration path; union coverage/current applicability and gaps with owner/action/dependency impact; link retained/revalidated/replaced dimensions/interactions if relevant. A summary or count is not proof.>
 
 ## Observations and evidence
 
 <File paths, commands/results, citations, or other inspectable evidence. Separate sourced observations, inference, and unknowns.>
 
-For investigator entry/revalidation, cover authority/framing basis; relevant source identity and material evidence/counterevidence; questions/unknowns; criteria coverage/dependencies; approach and sizing candidates; falsifiable checks/review blockers. Validate reused evidence for this unit's scope, criteria, inputs, decisions, assumptions and volatility; link prior reports and retained/replaced coverage on renewal. A short sourced paragraph suffices for a tiny leaf; other roles may link the consumed packet rather than repeat it.
+For investigator entry/revalidation, cover authority/framing basis; relevant source identity and material evidence/counterevidence; questions/unknowns; criteria coverage/dependencies; approach and sizing candidates; falsifiable checks/review blockers **within assigned coverage**. State finer-boundary/sizing implications and global limits; the applicable union supplies the collective packet, not redundant all-unit proof in each narrow report. Validate reused evidence for this unit's scope, criteria, inputs, decisions, assumptions and volatility; link prior reports and retained/revalidated/replaced dimensions/interactions on selective renewal. A short sourced paragraph suffices for a tiny leaf; other roles may link the consumed packet rather than repeat it.
+
+For the **one assigned integrating planner**, link actual opened reports and material primary sources with identity/version/context/current relevance; assess whole-unit scope/criteria/assumption/dependency coverage, overlaps, interactions, counterevidence/conflicts, checks and semantic sizing including no-split. Preserve contrary sources; no votes/recency/summary assertion. Record meaningful gaps, owner/action and affected claims; missing material facts return for bounded same-unit investigation, binding conflicts to their decision scope. Integration is attempt evidence; only an assigned sole writer updates existing authority. Keep full discussion fail-closed and selected-level readiness separate from set sufficiency.
 
 ## Work and results
 

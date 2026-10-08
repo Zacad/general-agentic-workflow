@@ -74,7 +74,8 @@
 - Requirements review / open dependencies when applicable: <link exact presented version/statements, actual response/reference and scope, separately from adequacy/readiness; pending/partial/declined and blocked dependent items with owner/action. Review never authorizes unnamed child entry or material revision.>
 - Children: none | U-... (draft / authorized as recorded below)
 - Applicable decisions: none | D-... (including inherited and exceptions)
-- Own-unit investigator evidence: <accessible report path and current applicability; retained prior report / linked revalidation or replacement if needed. Initial root writer links its framing report supplied by the caller; prepared child: not invoked, own investigator first after named checkpoint; parent evidence is input only.>
+- Own-unit investigator evidence: <accessible same-unit primary report set, distinct attempt identities and question/coverage/source applicability; collective sufficiency and scoped limits; retained/revalidated/replaced dimensions/interactions with gaps/owner/action/dependency impact. Initial root writer links framing reports supplied by caller; prepared child: not invoked, own investigation first after named checkpoint; parent evidence is input only.>
+- Integration evidence: <one assigned planner's report and primary-source identity/coverage/conflicts/dependencies/whole-unit sizing basis, actually consumed for current scope; synthesis is evidence, not another authority tracker or substitute for primary reports.>
 - Attempt / verification evidence: none | path(s)
 
 ## Checkpoints

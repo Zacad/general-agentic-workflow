@@ -8,6 +8,8 @@ description: Independently verify a stable work-unit outcome against its accepta
 **Inputs:** unit/revision/authorization, criteria and check method, stable named deliverable or attempt, inherited decisions, own attempt path.
 
 **Procedure:**
+Where own-unit evidence is part of the check, consume the applicable primary report set/material sources and assigned planner integration basis per protocol. Test collective coverage, source identity/applicability, conflicts/interactions and whole-unit sizing rather than count, synthesis assertions or full-unit proof demanded from every narrow report. Check selective renewal/retained links and meaningful missing-input gaps/owner/action; affected-only blocking grants no full discussion, review, authority or selected-level readiness bypass. This evidence is input, never independent criterion proof by itself.
+
 1. Confirm the target is the named stable output; otherwise request a new snapshot/attempt. Read the brief's intent and criteria independently of the producer's conclusion.
 2. Choose checks capable of revealing noncompliance, including relevant edge cases. Inspect primary output and run domain-appropriate checks; for code use `verify-code` when appropriate.
 

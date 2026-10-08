@@ -18,6 +18,8 @@ Guide a project-local OpenCode setup from an accessible **source kit**, the dire
 
 Copied installer references are local to this skill directory. They do not require an installed `kit/` tree. **Every future update still needs an explicit incoming source kit**; this copied skill is guidance, not the canonical source bundle.
 
+When a controlling workflow uses complementary investigation, its own-unit entry evidence is the applicable primary report set and assigned planner integration basis: actually consume coverage/source/dependency/conflict evidence per that protocol, with selective renewed dimensions/interactions and retained links/gap owners. Neither report count nor synthesis grants operation approval or bypasses full discussion, selected-level readiness or independent proof. This pointer creates no target authority and does not activate incoming rules early.
+
 ## Procedure
 
 1. **Inventory and select the route.** Inspect the target before classifying it: new/absent, existing unrelated setup, or installed/legacy workflow. New targets can inherit rules/configuration. Record source identity (real revision/tag if available; otherwise honestly unavailable), date, exact paths and a SHA256 content manifest. Inventory the whole source `.agents/roles/` and complete `.agents/skills/` directories, including every reference/support resource, plus root `AGENTS.md` and these static files:

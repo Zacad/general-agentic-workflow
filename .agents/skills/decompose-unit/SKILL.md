@@ -5,7 +5,9 @@ description: Prepare one bounded set of child briefs from a parent work unit. Us
 
 # Decompose a unit
 
-**Inputs:** authorized parent/revision, acceptance criteria, constraints, dependencies, linked accessible own-parent investigator report, available evidence, assigned child-brief paths.
+**Inputs:** authorized parent/revision, acceptance criteria, constraints, dependencies, linked accessible own-parent investigator report set and assigned planner integration basis, available evidence, assigned child-brief paths.
+
+The report-consumption and sizing steps below use the protocol's applicable collective parent evidence: actually open relevant primary reports/material sources and integration, assess union coverage/conflicts/dependencies and whole-parent semantic sizing including no-split. Narrow investigators supply scoped sizing implications, not redundant whole-parent packets. Missing material dimensions/interactions return for bounded same-parent investigation with retained/revalidated/replaced links and meaningful gaps/owner/action; a synthesis assertion is not proof. Preserve full discussion fail-closed and sibling-level readiness. These are parent attempts, not own-child investigation or dimension units; exact child checkpoint still precedes each new child's distinct entry.
 
 **Procedure:**
 1. Read/check the parent's distinct investigator report for current applicability per protocol before substantive preparation; stop evidence gaps for renewed parent investigation. Compare plausible semantic split vectors including no-split per protocol Work split, favoring independently useful completion/review/check/retry boundaries despite shared sources/runtime. Explain the selected current horizon from actual evidence; isolated file/layer/phase fragments are not outcomes. If no children fit, justify the single-horizon leaf; unresolved sizing stays provisional with question/evidence/owner/action. Prepare only the next useful set, not a complete speculative hierarchy.

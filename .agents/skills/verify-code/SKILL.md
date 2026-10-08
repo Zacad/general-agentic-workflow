@@ -9,6 +9,8 @@ description: Independently inspect and test a stable approved code change agains
 
 **Procedure:**
 
+Linked own-unit investigator evidence may be the applicable primary report set and assigned planner integration basis per protocol. Inspect relevant reports/material sources and their current identity/coverage/interactions; summary/count assertions are no substitute. Preserve selective renewal and affected gaps/owner/action without bypassing authority, full discussion or selected-level readiness. The set does not replace independently derived expectations or any required real execution below.
+
 Before reading the producer implementation/solution, read the approved criteria/current review and establish the independent expected-behavior basis below. Source inspection and tests may refine failure hypotheses, never define the oracle by copying actual implementation output.
 
 1. Inspect the actual diff and relevant surrounding behavior; distinguish changes made by the producer from existing work. Read relevant tests and project verification commands.

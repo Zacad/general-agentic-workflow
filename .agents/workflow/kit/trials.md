@@ -63,6 +63,54 @@ Prepare only the next useful sibling wave; obtain named current-revision approva
 
 For each control record actual source target, inspected clauses, expected/observed disposition, result status and limits. Also inspect retention of testing/UI review, common-skill loading, full discussion delegation, actual answer/summary read-relay, independent stable-target proof, scoped decisions and compact receipts. Contract walkthrough results describe instruction consistency only; live outcomes require separate actual evidence.
 
+## Same-unit complementary investigation: focused contract scenarios
+
+These are hypothetical fixtures and expected routing, not executed live-agent,
+software or trip results. Freeze a source target and retain baseline bytes/hashes.
+A document walkthrough records the exact inspected clauses, expected/observed
+disposition, affected claims and owner/action. Use the existing actual distinct
+independent verifier/report/result/short-summary read-relay and separate writer
+reconciliation route. Live adherence or speedup needs separately authorized actual
+invocation/timing/cost/write evidence; source consistency establishes neither.
+
+### Assignment and integration walkthrough
+
+Use one authorized unit/current revision (or one common initial-root framing
+basis). The orchestrator compares one investigator, concurrent independent topics
+and staged dependent topics. Allocate separate attempts for complementary questions,
+with explicit coverage, primary sources/versions/context and prior applicability,
+dependencies/cross-dimension owner, expected checks, report/answer paths and stops.
+Shared source reading is allowed. Workers do not delegate or edit authority.
+Assign one planner to actually read the applicable reports/material primary sources
+and integrate union scope/criteria/assumption/dependency coverage, interactions,
+conflicts/counterevidence, check basis and whole-unit semantic sizing including
+no-split in its own report. Consumers read that primary set and integration; only
+the assigned sole writer updates existing brief/log/Work split/Relationships.
+
+### Software and travel fixtures
+
+| Fixture / seeded failure | Expected disposition and positive contrast |
+| --- | --- |
+| Known pinned older API; executing call path and adjacent regression; latest-only docs and similarly named unused path are decoys | Concurrent local executable-path research and version-matched API/tool research may contribute narrow complementary reports. Identify actually called behavior and exact release contract; reject latest-doc or dead-path proof. Planner checks their interaction and whole-unit sizing, not duplicated complete surveys. |
+| Unknown dependency version determines API semantics | Resolve version first or retain expressly conditional branches; unrelated local mapping may overlap. Reject guessed-latest definitive advice and compulsory parallelism. |
+| Runner docs promise capability; binary exists, but required real browser/service is absent | Separate documented contract, observed local prerequisites and actual execution. Required browser/recovery claims remain unverified with prerequisite owner/action; static/build/binary presence does not pass them, and no automatic installation removes the fixture. |
+| Tiny exact executing condition with approved expectation and adjacent meaningful regression; or adequate fresh same-unit evidence | One investigator or evidence reuse is valid with sourced boundaries/checks and honest limits. Reject forced fan-out, manufactured runner alternatives and dimension/phase children. Several substantial independent topics may justify more attempts; reject invented caps/budgets or unlimited fan-out without reasoning. |
+| Shared trip dates, two nights, travelers/occupancy, time zones and EUR party budget; route arrival 22:30, check-in ends 21:00, no sourced late arrangement | Concurrent route and stay research may proceed under common assumptions, but interaction check must flag missed check-in. Wrong nights/occupancy or undocumented transfer/service hours leave affected feasibility gaps. Finished reports do not prove a feasible trip. |
+| Party budget EUR 600; transport 250, lodging 320, mandatory fee 50 | Recompute total EUR 620, excess EUR 20; individually affordable components do not pass combined budget. Per-person/party or mixed-currency ambiguity needs source/decision owner, not guessed arithmetic basis. |
+| Destination selection determines nights/stay research; old lodging extract or wrong station/airport geography | Stage route shortlist then stay research, or explicitly conditional comparisons keyed to alternatives. Preserve actual preference question and date/geography/availability gaps; stale listings or matching place names prove no current availability/transfer feasibility or executed trip. |
+
+### Collective evidence negative controls
+
+| Seeded failure | Required disposition / positive contrast |
+| --- | --- |
+| Complementary narrow reports individually lack whole-unit packet/sizing, but their applicable union is sufficient | Accept scoped contributions after one planner's actual primary-backed integration/whole-unit no-split comparison. Reject demanding redundant global proof from every investigator. |
+| Duplicate reports omit a material dimension or cross-dimension interaction owner; synthesis reads only receipts; wrong-unit/revision/source-context report; reused writable path | Stop affected claims, identify uncovered question/source and owner/action, renew bounded same-unit investigation and allocate separate owned paths. Count/summary assertions cannot supply proof. Prior revision contributes only with explicit current applicability revalidation. |
+| Conflicting facts/applicability/recommendations or newer unapproved local D | Preserve contrary primary evidence, identify conflict kind, assign bounded investigation/choice resolution; binding authority returns to its scope. No votes, silent recency/local precedence or synthesis-created exception. |
+| Partial accessible report, failed/blocked attempt, absent report/receipt/result or missing promised answer | Retain only established applicable claims and meaningful dependent gaps; broken handoff needs distinct assigned recovery or honest blocker. No fabricated completion, expanded inline recovery or substantive relay of nonexistent answer. Unrelated adequately evidenced authorized work may proceed only under its full discussion route and reconciled group readiness. |
+| One excellent report used to descend past unexplored selected sibling, deferred prerequisite or unapproved child | Stop affected deeper preparation/entry/delivery; reconcile level-first sibling readiness or meaningful retained disposition. Initial-root framing grants no production, parent preparation is not child investigation, exact current-revision immediate-parent checkpoint precedes child entry. |
+| One changed dimension/interaction triggers whole-set rerun, or fresh unrelated report hides stale affected evidence | Renew only affected questions/interactions in distinct same-unit attempts; retain/link unaffected fresh reports and explicit revalidated/replaced coverage. Session/role/retry/age/first approval alone needs no repeat; renewal grants no revised checkpoint. |
+| Planner integration treated as authority tracker, producer selfcheck as independent verification, summary stored unseen or child PASS as parent PASS | Keep integration in planner attempt and authority edits with one assigned writer. Require actual distinct stable-target primary proof, exact successful summary read/relay before state update, actual writer reconciliation and parent own coverage/integration check. Preserve testing/UI review and execution gates. |
+
 ## Clear communication across all five roles
 
 Check [clear-communication](../../skills/clear-communication/SKILL.md) against two independent requirements: writing quality and understandable terms. Passing either cannot compensate for failure of the other. Freeze a named source target (the exact source snapshot to be checked) with full original bytes and an inventory of the 18 pre-existing skills, roles and protected methods; the added skill gives 19 source entries. Check runtime discovery, full configured role prompts and actual full loading of both common skills separately. Use a real distinct verifier and an isolated verifier-owned workspace, preserving original failures and named targets.

@@ -5,7 +5,9 @@ description: Create an approved leaf work unit's deliverable within its owned bo
 
 # Produce an outcome
 
-**Inputs:** authorized unit and matching revision, current justified-leaf Work split, inherited decisions, linked accessible report from this unit's distinct investigator, available research, explicit owned output paths and attempt path.
+**Inputs:** authorized unit and matching revision, current justified-leaf Work split, inherited decisions, linked accessible own-unit investigator report set and assigned planner integration basis, available research, explicit owned output paths and attempt path.
+
+The investigator/report/finer-boundary references below mean the applicable primary set and integrated whole-unit sizing basis per protocol. Actually read those reports, material cited evidence and integration for this commitment; sufficient union coverage does not require each narrow report to prove the whole unit. Summary assertions/counts cannot substitute. Retain fresh unaffected dimensions and renew only material affected questions/interactions with explicit retained/revalidated/replaced applicability and gaps/owner/action/dependency impact. Scoped blocking does not bypass full discussion fail-closed or selected-level group readiness. Carry the same set/identity/applicability links into stable-target independent checking.
 
 **Procedure:**
 1. Verify the parent/root checkpoint names this unit's current revision; read the linked own-unit investigator report and check current applicability per protocol before deliverable work. Self-research/skill loading, assertions or another unit's report cannot substitute. Stop missing/inapplicable coverage, contradictions or changed material uncertainty/dependencies for renewed distinct same-unit investigation, retaining/linking prior evidence; refreshed evidence cannot override authorization/decisions. Inspect existing outputs before editing. Respect all constraints and output ownership.
