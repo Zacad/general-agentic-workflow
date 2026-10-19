@@ -1,4 +1,9 @@
-# Disposable local runs of the workflow in this source kit; do not copy this
-# ignore rule into an installed endeavor if its briefs should be durable.
-.workflow/
-__pycache__/
+# Vendor and local tooling are installed per machine; they are not kit content.
+/cli/vendor/
+/cli/tools/
+/cli/.phpunit.cache/
+
+# Generated or transient workflow state.
+/.workflow/.locks/
+/.workflow/board.html
+*.tmp

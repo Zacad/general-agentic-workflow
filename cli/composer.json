@@ -1,0 +1,36 @@
+{
+    "name": "adam/general-agentic-workflow",
+    "description": "A lightweight, Markdown-first workflow CLI for coordinating LLM agents.",
+    "type": "project",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.4",
+        "symfony/console": "^8.1",
+        "symfony/filesystem": "^8.1",
+        "symfony/finder": "^8.1",
+        "symfony/lock": "^8.1",
+        "symfony/yaml": "^8.1"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^13.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "Workflow\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Workflow\\Tests\\": "tests/"
+        }
+    },
+    "bin": [
+        "bin/workflow"
+    ],
+    "config": {
+        "sort-packages": true
+    },
+    "scripts": {
+        "test": "phpunit"
+    }
+}

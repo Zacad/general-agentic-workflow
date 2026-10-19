@@ -1,15 +1,165 @@
-# Agent workflow rules
+# Project workflow rules
 
-This file is portable and should be **merged** with existing project instructions during installation, preserving stricter or domain-specific rules. Read `.agents/workflow/protocol.md` when this workflow is in use. In an installed workspace, `.workflow/units/` holds briefs, `.workflow/decisions/` holds consequential decisions, and `.workflow/attempts/` holds per-attempt evidence. If several roots match the request, ask which one to resume.
+This project uses the general agentic workflow. Markdown under `.workflow/`
+is the durable record. The `workflow` CLI is the supported way to read and
+write it.
 
-- Load `.agents/skills/critical-reasoning/SKILL.md` and `.agents/skills/clear-communication/SKILL.md` in full before doing workflow work, including orchestration. Load the relevant entry/lifecycle skill and any domain skill for the assignment; pi can read skills directly. Verify material claims and distinguish observation, sourced evidence, inference, and unknowns.
-- Start every new unit with distinct investigator invocation(s) and accessible own-unit reports before substantive downstream planning/production. Compare one, concurrent independent and staged dependent questions proportionately; assign same-unit/revision bounded scopes, sources, dependencies/checks and separate attempts. Their applicable union may cover entry; narrow investigators supply scoped sizing implications, and one assigned planner reads reports/material primary sources for whole-unit coverage, conflicts and sizing. Consumers read applicable primary reports and integration, not a summary assertion. Reuse fresh evidence and selectively renew affected dimensions/interactions, retaining links and responsible gaps. No automatic dimension units, worker delegation, invented cap/budget or speedup claim. Preserve root/child authority, full discussion fail-closed and selected-level readiness gates.
-- Respect an approved unit's boundaries and inherited decisions. Investigate enough to draft a new root before its first checkpoint. Do not enter a child until its ID and material brief revision have an explicit user checkpoint recorded in the parent brief. Approval of a parent is not approval of all descendants. One checkpoint may cover a named group.
-- Approval authorizes routine investigate → choose → advance → check/reconcile within the approved scope. Local approach choices are delegated. Stop affected work and ask for a checkpoint if its outcome, boundaries, acceptance criteria, or consequential inherited decisions need material change.
-- Every new/prepared or prospectively materially revised brief must have a complete meaningful `Decision log` per protocol: established user/inherited/local positions with status, applicability, alternatives, concise rationale and actual sources/authority; proposals separate. One assigned writer creates/maintains it from sources and worker reports before claiming the brief current/complete; summaries never override D records/checkpoints.
-- Every such brief must also have a reasoned `Work split` per protocol: semantic candidates including no-split, selected current child horizon with readiness/contribution/checks or a unit-specific justified leaf. Favor independently reviewable outcomes; reassess finer boundaries at each unit's distinct investigator entry. Unresolved sizing stays provisional, not leaf; prepare only the next useful horizon and checkpoint children before entry.
-- Apply the protocol's requirements/coverage gate before dependent delivery: use `endeavor-requirements` for substantial nonsoftware discovery and `product-requirements` for software. Reuse adequate specifically reviewed current input; keep material dimensions, expected depth, checks and open dependencies visible. A specification draft or review does not grant unit authorization.
-- After adequate requirements and appropriate structure, expose a broad high-level horizon and explicitly choose a bounded delivery group with the user. Use proposed project-specific taxonomy for understanding, not sizing proof or fixed universal levels; lead user-visible scope/checkpoint discussion with names/context before exact IDs/revisions. Prepare relevant siblings at each selected level before deeper preparation/entry. Before dependent delivery, reconcile every selected path to an evidenced justified leaf or retained deferred/blocked disposition with reason, owner/action, dependency impact and reconsideration basis. Discovery/requirements/structure/preparation outputs establishing readiness are exempt under their own authority. Persist group/wave/navigation in existing Work split/Relationships with one coordinating authority; no full-project expansion or tiny-task bureaucracy. Independently acceptable modules/infrastructure are valid outcomes, alongside vertical slices.
-- Use role instructions from `.agents/roles/`. The orchestrator coordinates, records/checks authorization, and delegates substantive work. Workers save detailed reports in their own attempt paths and return only the compact handoff from `.agents/workflow/protocol.md`; do not send transcripts to the orchestrator.
-- Check outcomes against the unit's criteria using methods suited to the deliverable. A verified child does not automatically verify its parent. Changed evidence can send affected work back to an earlier decision; unrelated units may continue.
-- Give each concurrent attempt its own report path. Allow parallel production only with disjoint output ownership and settled dependencies; use one assigned writer for an authoritative brief or decision at a time. Investigators and verifiers may write their own attempt artifacts, not deliverables or authoritative state.
+## The rule that matters most
+
+**The orchestrator coordinates; it does not read the work.**
+
+It works through four bounded commands — `status`, `ready`, `brief` (reads) and
+`result` (record a receipt). Explorers, workers and verifiers read the actual
+sources and artifacts in their own context and return a short receipt. If the
+orchestrator needs more detail, it delegates a new bounded question instead of
+opening a report.
+
+## Records
+
+```
+.workflow/
+  PRD.md                product requirements
+  Architecture.md       design and decisions
+  items/<ID>/item.md    one item: YAML state + Markdown body
+  items/<ID>/outputs/   deliverables, only when there are real files
+  board.html            generated, read-only view
+```
+
+No other files belong in an item directory. There are no per-attempt
+directories and no staged copies of the project.
+
+## Work items
+
+Kinds are `epic`, `task` and optional `subtask`. An epic has no parent, a task
+belongs to an epic (or is a standalone task with a reason), and a subtask
+belongs to a task. Use dependency edges (`depends_on`) for ordering and
+`owns` for the paths a worker may change.
+
+Statuses: `draft`, `todo`, `in-progress`, `done`, `cancelled`.
+Phases: `explore`, `plan`, `implement`, `verify`.
+
+The hierarchy and phases are guidance, not a state machine. The CLI enforces
+only what prevents corruption: valid kinds, valid parents, no dependency
+cycles, and one fresh approval.
+
+## The loop
+
+1. **Frame.** Create the item, write its outcome, scope, acceptance criteria,
+   dependencies and owned paths. Present the exact item and ask for approval.
+2. **Explore.** Before implementation, answer the open questions. Exploration
+   can have several independent dimensions: the codebase, the web/prior art,
+   data analysis, a spike. Each dimension is a bounded question to an
+   explorer, with its own artifact. Sequence dimensions with `depends_on`
+   when one answer changes the next question.
+3. **Plan.** Write `## Plan` from the exploration artifacts with
+   `workflow plan`. Split into children only when a part has its own
+   independently acceptable outcome.
+4. **Implement.** A worker changes only its owned paths and records what it
+   did in the artifact and receipt.
+5. **Verify.** A verifier checks the frozen artifacts against the acceptance
+   criteria, independently of the worker. A verifier `done` receipt sets
+   `verified_at`.
+6. **Close.** `workflow close <id>` when the outcome is done or cancelled.
+
+Small work may pass through the phases in one session. Do not invent ceremony
+for a one-line change.
+
+## Approval
+
+Approval covers the item's **scope**: kind, parent, title, outcome, scope,
+acceptance criteria and dependencies. It is recorded once with
+`workflow approve <id>` and stays valid while that scope is unchanged.
+
+Status, phase, priority, owned paths, plan, decisions, artifacts and progress
+never invalidate approval. Editing a scope field does; `validate` reports it
+and the item is not `ready` until re-approved.
+
+This is deliberate: ask the user once per real scope. Do not re-ask for
+routine steps, and do not treat a status change as a new permission.
+
+## Delegation
+
+Give each worker a bounded assignment:
+
+- the item ID;
+- the exact question or outcome;
+- the owned paths and any upstream artifact paths it must read;
+- what to return.
+
+The cheapest delegation is **by reference**: give the worker the item ID and
+tell it to run `workflow brief <id>`. Then the brief stays in the worker's
+context, not the orchestrator's. Read the brief yourself only when you need to
+review or approve the scope.
+
+Workers never talk to each other directly. The orchestrator routes artifact
+paths. Run work in parallel only when `ready` shows no ownership overlap and
+the items do not depend on each other.
+
+## Receipts
+
+Every worker ends with exactly this, and the orchestrator records it with
+`workflow result`:
+
+```
+status: done | blocked | needs-decision | failed
+finding: one or two sentences
+artifacts: paths the result depends on
+decision: the question, or none
+next: one bounded action
+```
+
+A receipt is not a report. Detail lives in the artifact.
+
+## Context discipline
+
+| Level | Command | When |
+| --- | --- | --- |
+| L0 | `workflow status` | every session |
+| L1 | `workflow ready` | choosing work |
+| L2 | `workflow brief <id>` | delegating |
+| L3 | `workflow show <id> --section Plan` or one artifact | exceptional |
+| L4 | full report, diff or log | never in the orchestrator |
+
+Default to the lowest level that answers the question. A fresh session
+resumes from `status` plus one `brief`; there is no session memory to
+reconstruct.
+
+## CLI
+
+The binary is `cli/bin/workflow` in this kit. Add `cli/bin` to `PATH` or use
+the full path; the examples below use `workflow`. Load
+`.agents/skills/workflow-cli/SKILL.md` for the full command contract and read
+bounds.
+
+```
+workflow init                     scaffold .workflow/
+workflow new "title" [--kind task] [--parent E-001] [--owns path] [--depends ID]
+workflow status [--all]           working set
+workflow ready [--all]            startable work
+workflow brief ID [--for worker]  delegation packet
+workflow plan ID --file F         replace the plan section
+workflow decide ID "..."          append a durable decision
+workflow result ID --status done --finding "..." --artifacts path [--decision "..."] [--next "..."]
+workflow set ID status=in-progress phase=plan
+workflow approve ID [--by name]
+workflow log ID "progress note"
+workflow close ID [--status done|cancelled] [--reason "..."]
+workflow deps [ID] [--graph]
+workflow validate
+workflow board
+workflow show ID [--section Plan]  raw record (human/debug)
+workflow install DIR              copy the kit into another project
+```
+
+Run commands from anywhere inside the project; the CLI finds the nearest
+`.workflow/`. Use `--project` to point elsewhere.
+
+## Rules of thumb
+
+- Prefer a bounded question over a large read.
+- Keep plans and progress short; the record is a working tool, not a diary.
+- Record decisions where they apply: project decisions in `PRD.md` or
+  `Architecture.md`, item decisions in the item.
+- Never delete failed or cancelled history; it is the reason the current
+  state is trustworthy.
+- Ask the user only when scope or a real decision is at stake.

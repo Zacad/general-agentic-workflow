@@ -1,0 +1,17 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use Workflow\Console\Application;
+
+$autoload = dirname(__DIR__).'/vendor/autoload.php';
+if (!is_file($autoload)) {
+    fwrite(STDERR, "Workflow dependencies are not installed.\nRun: composer install --working-dir=".dirname(__DIR__)."\n");
+    exit(1);
+}
+
+require $autoload;
+
+$application = new Application();
+exit($application->run());

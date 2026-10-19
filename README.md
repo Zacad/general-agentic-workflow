@@ -1,60 +1,163 @@
 # General agentic workflow
 
-A domain-neutral, recursive way to work on an endeavor or a bounded request in an existing endeavor. A work unit may describe a software feature, a book chapter, a trip plan, or any smaller piece with a clear outcome. Work one decision horizon at a time; do not plan and execute the whole hierarchy in one session.
+A small, Markdown-first workflow for coordinating LLM agents on real work.
 
-The primary agent coordinates workers and asks the user for scoped checkpoints. Workers investigate, plan, produce, and independently check outcomes using on-demand skills. The durable source of truth is in the endeavor workspace, not the chat transcript.
+The orchestrator coordinates. It does **not** read the work. It works through
+four bounded commands — `status`, `ready`, `brief` (reads) and `result`
+(record a receipt) — while explorers, workers and verifiers read sources and
+artifacts in their own context and return a short receipt.
 
-Every role, including the coordinator, loads [clear-communication](.agents/skills/clear-communication/SKILL.md) alongside `critical-reasoning`. It gives equal attention to well-organized, useful writing and explaining unfamiliar terms in the reader's current problem. The rules guide behavior through instructions; actual loading and output quality still need checking.
+## Why it is shaped this way
 
-## Components
+- **Context economy.** One `item.md` per task, a compact brief for delegation,
+  and a fixed-size receipt for results. The orchestrator's context depends on
+  the number of active items, not the size of the backlog or the artifacts.
+- **Durable state.** Markdown in the repository is the source of truth. A fresh
+  session resumes from `status` plus one `brief`.
+- **One approval.** Approval covers the item's scope and survives status,
+  plan, progress and artifact changes. Only a real scope change re-prompts.
+- **Bounded files.** One `item.md` per item, an optional `outputs/` directory,
+  and an append-only progress log. No per-attempt directories, no copied
+  projects, no databases.
+- **Safe parallelism.** Dependencies and owned paths are explicit; `ready`
+  reports overlaps before two agents collide.
+- **Steer, don't legislate.** A short protocol, four roles and ten skills give
+  the model direction without encoding every edge case.
 
-- `AGENTS.md`: short, portable always-on rules and the state entry point.
-- `.agents/roles/`: canonical role prompts, including the orchestrator; these are **not** automatically registered as agents by OpenCode or pi.
-- `.agents/skills/`: portable Agent Skills discoverable from a project workspace by OpenCode and, when project resources are trusted, Pi.
-- `.agents/workflow/{protocol,unit,decision,attempt}.md`: portable static protocol and starting templates installed alongside roles and skills.
-- `.agents/workflow/kit/`: source-only [installation](.agents/workflow/kit/install.md), [Pi guidance](.agents/workflow/kit/pi.md), [trial guidance](.agents/workflow/kit/trials.md), results, fixtures and [OpenCode example](.agents/workflow/kit/opencode.example.json); the example registers roles and models without a plugin.
+## Quick start
 
-## Install or update an endeavor workspace
+Requires PHP 8.4+ and Composer.
 
-Use [install-workflow](.agents/skills/install-workflow/SKILL.md) for a new project, integration with existing AGENTS/`.agents`/OpenCode configuration, or an installed/legacy workflow update. It loads from an explicit source kit, analyzes effective instructions/configuration and current model evidence, recommends exact changes, then asks before applying them. See [source-loading examples and manual fallback](.agents/workflow/kit/install.md) and the focused [update/recovery guide](.agents/skills/install-workflow/references/update-guide.md).
+```sh
+cd cli
+composer install
+cd ..
 
-The target does not need to have the installer registered. For example:
+# Scaffold the records (already done in this repository).
+cli/bin/workflow init
 
-```text
-Read /abs/kit/.agents/skills/install-workflow/SKILL.md in full and use it
-to install the workflow into /abs/project from /abs/kit. Analyze first,
-recommend changes and role models, then ask before target changes.
+# Frame work.
+cli/bin/workflow new "First epic" --kind epic
+cli/bin/workflow approve E-001 --by adam
+cli/bin/workflow new "Parse YAML front matter" \
+  --kind task --parent E-001 \
+  --outcome "Front matter round-trips into a typed Item." \
+  --owns cli/src/Domain/
+
+# Fill the scope, then approve it once.
+cli/bin/workflow set T-001 \
+  'acceptance=Round-trips without loss; Unknown keys are preserved' \
+  'scope_in=Parsing; Round-trip; Errors' \
+  'scope_out=Schema migration'
+cli/bin/workflow approve T-001 --by adam
+
+# Daily coordination.
+cli/bin/workflow status
+cli/bin/workflow ready
+cli/bin/workflow brief T-001
+cli/bin/workflow result T-001 --status done --finding "Codec implemented; 14 tests pass." \
+  --artifacts cli/src/Domain/FrontMatter.php --next verify
+cli/bin/workflow board
 ```
 
-For an update, use the same explicit source-loading request with **update the installed workflow** and the chosen incoming kit/target. Keep source, target and command cwd explicit. Copied installer references remain portable; future updates still require a separate incoming source kit. Transfer the whole dynamically inventoried roles/skills/resources, merged AGENTS rules and four statics—not source-only `kit/`, source state, caches or the blanket source ignore rule. Preserve local rules/configuration and recoverable before/after evidence from the first installation; unresolved mandatory collisions mean incomplete setup.
+Run commands from anywhere inside the project; the CLI finds the nearest
+`.workflow/`. Use `--project` to point at another project.
 
-[Verification](.agents/skills/install-workflow/references/verification.md) distinguishes instruction/resource review, actual installed files, native discovery and live model use. Native debug/model initialization is conditional on permitted startup effects; catalog or credential presence does not prove inference. Quit and restart OpenCode after configuration/role/skill changes. The target workspace stores its own evolving state under `.workflow/`:
+## Records
 
-```text
+```
 .workflow/
-  units/U-0001/brief.md
-  decisions/D-0001.md
-  attempts/U-0001/A-0001/report.md
+  PRD.md                 product requirements
+  Architecture.md        design and decisions
+  board.html             generated read-only board
+  items/<ID>/item.md     YAML state + Markdown body + progress log
+  items/<ID>/outputs/    deliverables, only when there are real files
 ```
 
-Use `start-new-endeavor` for a new root, or `start-existing-work` for an existing issue/request. Investigation to draft a root brief is allowed before initial approval; advancing that root requires its checkpoint. Each child requires an explicit checkpoint naming it and its material revision. Routine work within an approved unit is delegated without another phase-by-phase approval.
+Item state:
 
-Research can use one investigator, concurrent independent topics, or staged dependent topics in the **same unit**, with separate scoped attempts rather than research-phase children. For known software versions, executable-path inspection can overlap version-matched API/tool research; resolve an unknown version before definitive API advice. Route and stay research can overlap with shared dates/travelers/budget, but a destination choice may need to come first. One assigned planner reads the reports and material primary sources, checks combined coverage, interactions and whole-unit sizing, and records gaps. Consumers read the applicable report set and integration basis; a summary or report count is not proof. Retain fresh dimensions and renew affected evidence selectively. Use concurrency when useful breadth or latency plausibly justifies coordination cost, without forced fan-out, an invented cap or a claimed measured speedup. See [same-unit assignment and integration](.agents/workflow/protocol.md#same-unit-research-assignment-and-integration); existing authority, readiness and answer-read/relay gates still apply.
+```yaml
+id: T-002
+kind: task                # epic | task | subtask
+parent: T-001
+title: Parse YAML front matter
+status: todo              # draft | todo | in-progress | done | cancelled
+phase: explore            # explore | plan | implement | verify
+priority: 2
+depends_on: []
+owns: [cli/src/Domain/]
+artifacts: []
+approval: {at: ..., by: adam, scope_hash: ...}
+outcome: ...
+scope: {in: [...], out: [...]}
+acceptance: [...]
+```
 
-After adequate requirements and appropriate project structure, show a **broad high-level horizon** and explicitly choose a **bounded delivery group** with the user: the named portion currently wanted for delivery. Propose categories that fit this project, explain their relationships, and lead with meaningful names/context before exact unit IDs and revisions. A book might organize learning progression while software might organize capabilities and independently usable modules; no universal levels apply, and category labels do not prove suitable work boundaries. Software architecture is conditional, not a stage for every endeavor. Initial root framing may leave organization and discovery questions open.
+## The loop
 
-Prepare the selected group in **waves**: address relevant siblings' outcomes, dependencies, readiness and possible finer boundaries at one level before deeper preparation or entry. Prepare the next useful horizon, obtain each entered child's exact revision checkpoint in its appropriate parent, then consume its own distinct investigation before the next wave. Uneven depths are useful: one branch may already be a justified leaf while another needs children. Vertical feature slices, independently acceptable modules and infrastructure outcomes are candidates assessed by observable acceptance/check/retry boundaries, not a mandatory technical hierarchy.
+1. **Frame** — outcome, scope, acceptance, dependencies, owned paths.
+2. **Explore** — bounded questions: codebase, web/prior art, analysis, spikes.
+3. **Plan** — write the plan; split only into independently acceptable parts.
+4. **Implement** — the worker changes owned paths only.
+5. **Verify** — an independent verifier checks the frozen artifacts.
+6. **Close** — done or cancelled.
 
-Before dependent delivery, every selected path must reach a justified leaf with sufficient evidence/review/check readiness, or an explicit deferred/blocked disposition retaining the requirement, reason, owner/action, dependency impact and reconsideration basis. A deferred prerequisite blocks its dependents; independently ready authorized work can proceed after preparation dispositions are reconciled. Requirements, discovery, structure and preparation outputs can establish readiness under their own authority before this barrier. This avoids deadlock without claiming their drafts settle downstream commitments. A tiny coherent no-split group needs only concise meaningful evidence, not task-level bureaucracy or a fully expanded project tree.
+Phases and hierarchy are guidance, not a state machine. The CLI enforces only
+what prevents corruption.
 
-Keep group selection, current/completed wave, deferrals, readiness evidence and one next action in existing `Work split`/`Relationships`, with one coordinating brief and links for cross-parent groups. Each parent's checkpoints retain their own named child authority and each file has one writer; no duplicate group tracker. Resume from those records rather than an isolated ready leaf. Parallel production also requires settled dependencies and disjoint outputs. Child verification supplies evidence for, rather than replaces, the parent's own independent check and reconciliation.
+## Commands
 
-For substantial nonsoftware or materially changing nonsoftware goals, use on-demand [endeavor-requirements](.agents/skills/endeavor-requirements/SKILL.md) for substantive discovery and reviewable breadth/depth/exception coverage before dependent delivery. Reuse adequate specifically reviewed current input and add gaps; tiny exact issues can use concise sourced brief/report coverage. Software retains [product-requirements](.agents/skills/product-requirements/SKILL.md) discovery. The [shared coverage/review gate](.agents/workflow/protocol.md#requirements-review-and-coverage) separates actual scoped agreement and dependent readiness from artifact adequacy and unit authorization; a separate requirements child is conditional, not a universal hierarchy.
+| Command | Purpose |
+| --- | --- |
+| `init` | scaffold `.workflow/` |
+| `new` | create a draft item |
+| `status` | working set: active, ready, waiting, decisions |
+| `ready` | startable work with dependency and overlap facts |
+| `brief <id>` | bounded delegation packet |
+| `plan <id>` | replace the `## Plan` section from text or a file |
+| `decide <id>` | append a durable decision |
+| `result <id>` | append a receipt |
+| `deps [id]` | dependency relationships or a Mermaid graph |
+| `set <id>` | update mutable fields |
+| `approve <id>` | approve the current scope |
+| `log <id>` | append a progress line |
+| `close <id>` | mark done or cancelled |
+| `validate` | structure, dependencies, approval, layout |
+| `board` | write the static HTML board |
+| `show <id>` | raw record (human/debug) |
+| `install <dir>` | copy the kit into another project |
 
-Before affected substantial software commitments, use [code-architecture](.agents/skills/code-architecture/SKILL.md) when design matters or [choose-approach](.agents/skills/choose-approach/SKILL.md)'s conditional testing method for material same-scenario strategy alternatives, critical coverage/evidence limits and version/prerequisite feasibility. The orchestrator actually presents an owned concise strategy artifact and retains exact scoped response; stored plans/generic stack approval are not review, and review is not execution. Reuse adequate specifically reviewed unchanged strategy; tiny exact issues retain meaningful focused regression/honest limits without forced stages or runner microapproval. See the [testing review gate](.agents/workflow/protocol.md#testing-strategy-and-scoped-review).
+All reads support `--json`.
 
-For material interface work, surface desired visual quality/taste and audience/task/platform/brand/use-context early, then use [ui-ux-design](.agents/skills/ui-ux-design/SKILL.md) for two substantive contextual directions with representative states/narrow-wide **viewable previews**. The orchestrator reads and actually relays an owned concise review artifact and accessible visual assets; one writer retains exact version/presentation/actual scoped response. Private previews, raw source or artist descriptions are not visual presentation. Consume sufficient review before affected material readiness/production; validate adequate unchanged reviewed reuse, and keep tiny in-direction corrections to sourced acceptance/focused checks. Missing brand may be a proposed contextual default for review, not agreed plain styling; missing access/context stays pending with owner/action while unrelated authorized work continues. Later independent direction comparison remains separate from rendered/functional/accessibility checks and participant-based usability evidence; mockup approval proves none of those outcomes. See the [visual review gate](.agents/workflow/protocol.md#visual-direction-and-scoped-review).
+## Roles and skills
 
-This repository supplies the workflow; do not confuse its static templates with an active endeavor's approved briefs. See [the protocol](.agents/workflow/protocol.md) for how to resume from files, resolve changed decisions, and reconcile outcomes.
+- Orchestrator — plans, frames, delegates, records, resumes.
+- Explorer — answers one bounded question with primary evidence.
+- Worker — delivers one approved outcome within owned paths.
+- Verifier — checks the frozen artifacts independently.
 
-The source kit's `.workflow/` is ignored by Git and used only for disposable live trials; the installed endeavor's `.workflow/units/` and `.workflow/decisions/` should be kept durably. See [trial observations](.agents/workflow/kit/trial-results.md) and the [old→new path lookup](.agents/workflow/kit/install.md#oldnew-source-path-lookup) for historical citations.
+Skills: `critical-reasoning`, `clear-communication`, `workflow-cli`,
+`requirements`, `code-architecture`, `ui-ux-design`, `decompose-work`,
+`verify-outcome`, `install-workflow`, `fresh-session-handoff`.
+
+## Install into another project
+
+See [docs/install.md](docs/install.md).
+
+## Deliberate omissions
+
+No database, ORM, server, daemon, scheduler or MCP in this version. No CAS,
+manifest hashes, journal or recovery protocol. No per-attempt directories,
+waves, groups or checkpoints. If a measured need for an index appears, it will
+be derived and rebuildable.
+
+See [docs/design-notes.md](docs/design-notes.md) for the review of the previous
+system, the alternatives considered and the context-economy measurements.
+
+## Development
+
+```sh
+cd cli
+composer install
+composer test
+```
