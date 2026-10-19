@@ -45,10 +45,30 @@ docs/
    ./cli/bin/workflow --project /path/to/target validate
    ```
 
-5. **Register the agents.** See [opencode.example.json](opencode.example.json).
-   Replace the model placeholders and adjust permissions to the target's
-   policy. Each role loads the `workflow-cli` skill, and `AGENTS.md` points to
-   it. Restart the harness after prompt changes.
+5. **Register the agents.** For OpenCode V2, copy
+   [opencode.example.json](opencode.example.json) to the target root as
+   `opencode.json`, or merge its `agents` entries into an existing config. Keep
+   it at the project root because `{file:...}` paths resolve from the config
+   file. The example:
+
+   - uses V2 fields (`agents`, `system`, ordered `permissions`);
+   - omits `model`, so each agent inherits the session model — add
+     `"model": "provider/model"` to pin one;
+   - sets `default_agent` to `workflow-orchestrator`, so new sessions start
+     there — remove it to choose per session;
+   - restricts the orchestrator to the three workflow subagents, and denies
+     subagents the ability to launch more agents.
+
+   Do not use the V1 `agent`, `prompt`, `permission`, `bash` or `task` fields.
+   Skills under `.agents/skills/` are discovered automatically, so no `skills`
+   entry is needed. Check the result with:
+
+   ```sh
+   cd /path/to/target
+   opencode debug agents
+   ```
+
+   Restart the harness after prompt or config changes.
 
    Make the CLI easy to call:
 
@@ -63,9 +83,11 @@ docs/
 
 ## Update
 
-Copy the changed kit files, merge `AGENTS.md` if its rules changed, run
-`composer install` if dependencies changed, and run `validate`. Do not copy
-the kit's `.workflow/`, `board.html` or `.locks/` directory.
+Copy the changed kit files, merge `AGENTS.md` if its rules changed, refresh
+`opencode.json` if `docs/opencode.example.json` changed, run `composer install`
+if dependencies changed, and run `validate`. Restart the harness after prompt
+or config changes. Do not copy the kit's `.workflow/`, `board.html` or
+`.locks/` directory.
 
 ## What not to copy
 

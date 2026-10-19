@@ -1,55 +1,41 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "default_agent": "workflow-orchestrator",
-  "agent": {
+  "agents": {
     "workflow-orchestrator": {
       "description": "Coordinates the workflow: frames and plans work, delegates bounded assignments, records receipts and resumes from the records.",
       "mode": "primary",
-      "model": "provider/REPLACE_WITH_MODEL",
-      "prompt": "{file:./.agents/roles/orchestrator.md}",
-      "permission": {
-        "edit": "allow",
-        "bash": "allow",
-        "task": {
-          "*": "deny",
-          "workflow-explorer": "allow",
-          "workflow-worker": "allow",
-          "workflow-verifier": "allow"
-        }
-      }
+      "system": "{file:./.agents/roles/orchestrator.md}",
+      "permissions": [
+        { "action": "subagent", "resource": "*", "effect": "deny" },
+        { "action": "subagent", "resource": "workflow-explorer", "effect": "allow" },
+        { "action": "subagent", "resource": "workflow-worker", "effect": "allow" },
+        { "action": "subagent", "resource": "workflow-verifier", "effect": "allow" }
+      ]
     },
     "workflow-explorer": {
       "description": "Answers one bounded question with primary evidence and writes a focused research artifact.",
       "mode": "subagent",
-      "model": "provider/REPLACE_WITH_MODEL",
-      "prompt": "{file:./.agents/roles/explorer.md}",
-      "permission": {
-        "edit": "allow",
-        "bash": "allow",
-        "task": "deny"
-      }
+      "system": "{file:./.agents/roles/explorer.md}",
+      "permissions": [
+        { "action": "subagent", "resource": "*", "effect": "deny" }
+      ]
     },
     "workflow-worker": {
       "description": "Delivers one approved outcome within owned paths and returns a compact receipt.",
       "mode": "subagent",
-      "model": "provider/REPLACE_WITH_MODEL",
-      "prompt": "{file:./.agents/roles/worker.md}",
-      "permission": {
-        "edit": "allow",
-        "bash": "allow",
-        "task": "deny"
-      }
+      "system": "{file:./.agents/roles/worker.md}",
+      "permissions": [
+        { "action": "subagent", "resource": "*", "effect": "deny" }
+      ]
     },
     "workflow-verifier": {
       "description": "Independently checks frozen artifacts against acceptance criteria and returns a verdict.",
       "mode": "subagent",
-      "model": "provider/REPLACE_WITH_MODEL",
-      "prompt": "{file:./.agents/roles/verifier.md}",
-      "permission": {
-        "edit": "allow",
-        "bash": "allow",
-        "task": "deny"
-      }
+      "system": "{file:./.agents/roles/verifier.md}",
+      "permissions": [
+        { "action": "subagent", "resource": "*", "effect": "deny" }
+      ]
     }
   }
 }
