@@ -16,8 +16,11 @@ description: Resume or hand off work from the records alone, with current author
    - the item ID, status, phase and parent;
    - whether approval is current (and re-approve only if scope changed);
    - dependency state and owned paths;
-   - the plan, the artifacts and upstream artifacts that matter now;
+   - the plan (pre-exploration approach) and design (post-exploration
+     solution), including the parent design for a child item;
+   - the artifacts and upstream artifacts that matter now;
    - the last receipt and any open decision.
+   For an epic, `workflow review <epic>` is the exact frame handoff.
 4. Record a handoff only when asked: workspace, item, approval scope, current
    artifacts, limits and one bounded next action.
 5. A handoff is a snapshot, not approval or proof. The recipient re-reads the

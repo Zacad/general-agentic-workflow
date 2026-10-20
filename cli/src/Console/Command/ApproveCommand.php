@@ -12,6 +12,7 @@ use Workflow\Domain\Approval;
 use Workflow\Domain\Item;
 use Workflow\Domain\Status;
 use Workflow\Support\Clock;
+use Workflow\Support\Text;
 
 final class ApproveCommand extends BaseCommand
 {
@@ -50,8 +51,25 @@ final class ApproveCommand extends BaseCommand
             return self::SUCCESS;
         }
 
+        $item = $this->store($input)->load($id);
+
         $output->writeln(sprintf('Approved %s by %s', $id, $by));
-        $output->writeln('scope: kind, parent, title, outcome, scope, acceptance, depends_on');
+        $output->writeln('kind: '.$item->kind->value);
+        $output->writeln('parent: '.($item->parent ?? 'none'));
+        $output->writeln('title: '.$item->title);
+        $output->writeln('outcome: '.($item->outcome !== '' ? $item->outcome : '(not set)'));
+        $output->writeln('scope in: '.Text::inlineList($item->scopeIn));
+        $output->writeln('scope out: '.Text::inlineList($item->scopeOut));
+        $output->writeln('acceptance:');
+        if ($item->acceptance === []) {
+            $output->writeln('  (not set)');
+        } else {
+            foreach ($item->acceptance as $index => $criterion) {
+                $output->writeln(sprintf('  %d. %s', $index + 1, $criterion));
+            }
+        }
+        $output->writeln('depends: '.Text::inlineList($item->dependsOn));
+        $output->writeln('owns: '.Text::inlineList($item->owns));
         $output->writeln('hash: '.$result['hash']);
         $output->writeln('status: '.$result['status']);
 

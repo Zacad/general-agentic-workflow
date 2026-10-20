@@ -9,11 +9,28 @@ The parts that were genuinely useful, independent of its implementation:
 
 - durable Markdown records;
 - an item hierarchy with dependencies;
-- a preparation phase before implementation;
+- preparation before implementation;
 - roles with different responsibilities;
 - independent verification;
 - compact reads for an orchestrator;
 - an installable kit.
+
+## Plan and design are separate
+
+The first version of this kit had one `## Plan` section written after
+exploration. In practice that collapsed two different decisions: what to
+investigate, and what the evidence means for the solution. A run that skipped
+the second decision produced a guide whose numbers were resolved while
+writing; four verification rounds then caught contradictions that a design
+pass would have caught earlier.
+
+The current loop is `plan -> explore -> design -> implement -> verify` at every
+level. `Plan` is the pre-exploration approach: question, dimensions, sources,
+stop conditions and acceptance mapping. `Design` is the post-exploration
+solution: outline, canonical claims or numbers, decisions, trade-offs, checks
+and risks. At epic level the design also carries the child decomposition,
+integration contract and coverage matrix. The CLI warns when either is missing
+but does not turn the sequence into a hard gate.
 
 ## What we removed, and why
 
@@ -47,7 +64,7 @@ The read levels:
 | --- | --- | --- |
 | L0 | `status` | every session |
 | L1 | `ready` | choosing work |
-| L2 | `brief` | delegating |
+| L2 | `brief` / `review <epic>` | delegating / exact frame review |
 | L3 | one section or artifact | exceptional |
 | L4 | full report/diff/log | never in the orchestrator |
 
@@ -84,9 +101,10 @@ storage engines are copied.
 ## Approval
 
 Approval is a hash of the **scope** only: kind, parent, title, outcome, scope,
-acceptance and dependencies. Status, phase, priority, ownership, plan,
-decisions, artifacts and progress do not affect it. That is the whole fix for
-repeated approval prompts:
+acceptance and dependencies. Status, phase, priority, ownership, plan, design,
+decisions, artifacts and progress do not affect it. `approve` prints the
+actual values it approved, and `review <epic>` prints the exact epic and child
+packet before approval. That is the whole fix for repeated approval prompts:
 
 - ask once for a real scope;
 - routine work never asks again;

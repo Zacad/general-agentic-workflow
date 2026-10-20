@@ -6,8 +6,9 @@ namespace Workflow\Domain;
 
 enum Phase: string
 {
-    case Explore = 'explore';
     case Plan = 'plan';
+    case Explore = 'explore';
+    case Design = 'design';
     case Implement = 'implement';
     case Verify = 'verify';
 }

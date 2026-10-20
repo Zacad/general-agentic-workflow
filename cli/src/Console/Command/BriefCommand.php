@@ -44,6 +44,9 @@ final class BriefCommand extends BaseCommand
         $dependencies = $this->dependencyLines($item, $items);
         $upstream = $this->upstreamArtifacts($item, $items);
         $plan = $item->section('Plan');
+        $design = $item->section('Design');
+        $parent = $item->parent !== null ? ($items[$item->parent] ?? null) : null;
+        $parentDesign = $parent?->section('Design') ?? '';
         $decisions = $item->section('Decisions');
 
         if ($input->getOption('json')) {
@@ -54,6 +57,8 @@ final class BriefCommand extends BaseCommand
                 'dependencies' => $dependencies,
                 'upstream_artifacts' => $upstream,
                 'plan' => $plan,
+                'design' => $design,
+                'parent_design' => $parentDesign,
                 'decisions' => $decisions,
                 'deliverable_paths' => $item->owns,
             ]);
@@ -102,12 +107,32 @@ final class BriefCommand extends BaseCommand
             }
         }
 
-        if (
-            $plan === ''
-            && in_array($item->status->value, ['todo', 'in-progress'], true)
-            && in_array($item->phase->value, ['implement', 'verify'], true)
+        if ($plan === '' && in_array($item->status->value, ['todo', 'in-progress'], true)
+            && ($role === 'explorer' || $item->phase->value !== 'plan')
         ) {
             $output->writeln('<comment>warning: no plan recorded; run "workflow plan '.$item->id.'" before delegating.</comment>');
+        }
+
+        if ($parentDesign !== '') {
+            $output->writeln('parent design:');
+            foreach (preg_split('/\R/', $parentDesign) ?: [] as $line) {
+                $output->writeln('  '.$line);
+            }
+        }
+
+        $output->writeln('design:');
+        if ($design === '') {
+            $output->writeln('  (not written yet)');
+        } else {
+            foreach (preg_split('/\R/', $design) ?: [] as $line) {
+                $output->writeln('  '.$line);
+            }
+        }
+
+        if ($design === '' && in_array($item->status->value, ['todo', 'in-progress'], true)
+            && in_array($item->phase->value, ['implement', 'verify'], true)
+        ) {
+            $output->writeln('<comment>warning: no design recorded; run "workflow design '.$item->id.'" before delegating.</comment>');
         }
 
         if ($role === 'explorer') {

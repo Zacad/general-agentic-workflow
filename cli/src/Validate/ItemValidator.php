@@ -73,6 +73,7 @@ final class ItemValidator
         $this->validateDependencies($items, $result);
         $this->validateApprovals($items, $result);
         $this->validatePlans($items, $result);
+        $this->validateDesigns($items, $result);
         $this->validateArtifacts($items, $result);
         $this->validateOwnership($items, $result);
 
@@ -258,7 +259,7 @@ final class ItemValidator
             if (!in_array($item->status->value, ['todo', 'in-progress'], true)) {
                 continue;
             }
-            if (!in_array($item->phase->value, ['implement', 'verify'], true)) {
+            if (!in_array($item->phase->value, ['explore', 'design', 'implement', 'verify'], true)) {
                 continue;
             }
             if (trim($item->section('Plan')) !== '') {
@@ -267,6 +268,31 @@ final class ItemValidator
 
             $result->warning(sprintf(
                 '%s: %s without a plan; run "workflow plan %s".',
+                $item->id,
+                $item->phase->value,
+                $item->id,
+            ));
+        }
+    }
+
+    /**
+     * @param array<string, Item> $items
+     */
+    private function validateDesigns(array $items, ValidationResult $result): void
+    {
+        foreach ($items as $item) {
+            if (!in_array($item->status->value, ['todo', 'in-progress'], true)) {
+                continue;
+            }
+            if (!in_array($item->phase->value, ['implement', 'verify'], true)) {
+                continue;
+            }
+            if (trim($item->section('Design')) !== '') {
+                continue;
+            }
+
+            $result->warning(sprintf(
+                '%s: %s without a design; run "workflow design %s".',
                 $item->id,
                 $item->phase->value,
                 $item->id,
@@ -288,6 +314,7 @@ final class ItemValidator
 
                 $candidates = [
                     $this->store->root().'/'.ltrim($artifact, '/'),
+                    $this->store->workflowDir().'/'.ltrim($artifact, '/'),
                     $itemDirectory.'/'.ltrim($artifact, '/'),
                 ];
 
@@ -323,6 +350,9 @@ final class ItemValidator
             for ($j = $i + 1; $j < $count; $j++) {
                 $left = $open[$ids[$i]];
                 $right = $open[$ids[$j]];
+                if ($this->hasDependencyPath($left, $right, $items) || $this->hasDependencyPath($right, $left, $items)) {
+                    continue;
+                }
                 $shared = $this->sharedOwnedPaths($left, $right);
                 if ($shared !== []) {
                     $result->warning(sprintf(
@@ -334,6 +364,30 @@ final class ItemValidator
                 }
             }
         }
+    }
+
+    /**
+     * @param array<string, Item> $items
+     * @param list<string>       $visited
+     */
+    private function hasDependencyPath(Item $from, Item $target, array $items, array $visited = []): bool
+    {
+        if (in_array($from->id, $visited, true)) {
+            return false;
+        }
+        $visited[] = $from->id;
+
+        foreach ($from->dependsOn as $dependencyId) {
+            if ($dependencyId === $target->id) {
+                return true;
+            }
+            $dependency = $items[$dependencyId] ?? null;
+            if ($dependency !== null && $this->hasDependencyPath($dependency, $target, $items, $visited)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

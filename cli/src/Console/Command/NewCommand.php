@@ -27,7 +27,7 @@ final class NewCommand extends BaseCommand
             ->addArgument('title', InputArgument::REQUIRED, 'Item title.')
             ->addOption('kind', null, InputOption::VALUE_REQUIRED, 'epic, task or subtask.', Kind::Task->value)
             ->addOption('parent', null, InputOption::VALUE_REQUIRED, 'Parent item ID (or none).')
-            ->addOption('phase', null, InputOption::VALUE_REQUIRED, 'explore, plan, implement or verify.', Phase::Explore->value)
+            ->addOption('phase', null, InputOption::VALUE_REQUIRED, 'plan, explore, design, implement or verify.', Phase::Plan->value)
             ->addOption('priority', null, InputOption::VALUE_REQUIRED, 'Priority number; lower is sooner.', '2')
             ->addOption('outcome', null, InputOption::VALUE_REQUIRED, 'One-sentence observable outcome.', '')
             ->addOption('standalone-reason', null, InputOption::VALUE_REQUIRED, 'Why a parentless task stands alone.')
@@ -49,7 +49,7 @@ final class NewCommand extends BaseCommand
 
         $phase = Phase::tryFrom(strtolower((string) $input->getOption('phase')));
         if ($phase === null) {
-            $output->writeln('<error>Invalid --phase: use explore, plan, implement or verify.</error>');
+            $output->writeln('<error>Invalid --phase: use plan, explore, design, implement or verify.</error>');
 
             return self::INVALID;
         }
@@ -75,7 +75,7 @@ final class NewCommand extends BaseCommand
         }
 
         $now = Clock::now();
-        $body = "## Plan\n\n## Progress\n";
+        $body = "## Plan\n\n## Design\n\n## Progress\n";
 
         $item = new Item(
             id: $store->nextId($kind),

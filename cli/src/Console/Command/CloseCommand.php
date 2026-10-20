@@ -99,6 +99,10 @@ final class CloseCommand extends BaseCommand
             $output->writeln('<comment>warning: closed done without a verifier receipt (forced).</comment>');
         }
 
+        if ($status === Status::Done && trim($store->load($id)->section('Design')) === '') {
+            $output->writeln('<comment>warning: closed done without a design; run "workflow design '.$id.'".</comment>');
+        }
+
         if ($status === Status::Cancelled && $reason === '') {
             $output->writeln('<comment>warning: cancellation has no reason.</comment>');
         }

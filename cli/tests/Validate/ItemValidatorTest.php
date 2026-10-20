@@ -146,4 +146,51 @@ final class ItemValidatorTest extends WorkflowTestCase
 
         self::assertStringNotContainsString('without a plan', implode("\n", $result->warnings));
     }
+
+    public function testImplementationWithoutDesignIsReported(): void
+    {
+        $item = $this->make('E-001', Kind::Epic);
+        $item->phase = Phase::Implement;
+        $item->body = "## Plan\n\n1. Do the work.\n\n## Progress\n";
+        $this->store->create($item);
+
+        $result = (new ItemValidator($this->store))->validate();
+        self::assertStringContainsString('implement without a design', implode("\n", $result->warnings));
+
+        $item->body = "## Plan\n\n1. Do the work.\n\n## Design\n\n1. Design it.\n\n## Progress\n";
+        $this->store->save($item);
+
+        $result = (new ItemValidator($this->store))->validate();
+        self::assertStringNotContainsString('without a design', implode("\n", $result->warnings));
+    }
+
+    public function testOwnershipOverlapIsIgnoredAcrossDependencyChain(): void
+    {
+        $first = $this->make('T-001', Kind::Task);
+        $first->owns = ['src/'];
+        $second = $this->make('T-002', Kind::Task);
+        $second->owns = ['src/Store/'];
+        $second->dependsOn = ['T-001'];
+        $this->store->create($first);
+        $this->store->create($second);
+
+        $result = (new ItemValidator($this->store))->validate();
+
+        self::assertStringNotContainsString('parallel overlap', implode("\n", $result->warnings));
+    }
+
+    public function testItemLocalArtifactPathUnderWorkflowIsAccepted(): void
+    {
+        $item = $this->make('T-001', Kind::Task);
+        $item->artifacts = ['items/T-001/outputs/x.md'];
+        $this->store->create($item);
+
+        $outputDirectory = $this->store->itemsDir().'/T-001/outputs';
+        mkdir($outputDirectory, 0777, true);
+        file_put_contents($outputDirectory.'/x.md', 'x');
+
+        $result = (new ItemValidator($this->store))->validate();
+
+        self::assertStringNotContainsString('artifact not found', implode("\n", $result->warnings));
+    }
 }

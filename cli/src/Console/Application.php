@@ -12,6 +12,7 @@ use Workflow\Console\Command\BriefCommand;
 use Workflow\Console\Command\CloseCommand;
 use Workflow\Console\Command\DecideCommand;
 use Workflow\Console\Command\DepsCommand;
+use Workflow\Console\Command\DesignCommand;
 use Workflow\Console\Command\InitCommand;
 use Workflow\Console\Command\InstallCommand;
 use Workflow\Console\Command\LogCommand;
@@ -19,6 +20,7 @@ use Workflow\Console\Command\NewCommand;
 use Workflow\Console\Command\PlanCommand;
 use Workflow\Console\Command\ReadyCommand;
 use Workflow\Console\Command\ResultCommand;
+use Workflow\Console\Command\ReviewCommand;
 use Workflow\Console\Command\SetCommand;
 use Workflow\Console\Command\ShowCommand;
 use Workflow\Console\Command\StatusCommand;
@@ -28,16 +30,18 @@ final class Application extends \Symfony\Component\Console\Application
 {
     public function __construct()
     {
-        parent::__construct('workflow', '4.0.0');
+        parent::__construct('workflow', '5.0.0');
 
         $this->addCommands([
             new InitCommand(),
             new NewCommand(),
             new PlanCommand(),
+            new DesignCommand(),
             new DecideCommand(),
             new StatusCommand(),
             new ReadyCommand(),
             new BriefCommand(),
+            new ReviewCommand(),
             new ResultCommand(),
             new DepsCommand(),
             new SetCommand(),

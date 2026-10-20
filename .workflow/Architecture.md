@@ -68,7 +68,7 @@ kind: task                # epic | task | subtask
 parent: E-001
 title: Parse front matter
 status: todo              # draft | todo | in-progress | done | cancelled
-phase: explore            # explore | plan | implement | verify
+phase: plan               # plan | explore | design | implement | verify
 priority: 2
 depends_on: [T-010]
 owns: [cli/src/Store/]
@@ -123,8 +123,10 @@ preserved because criteria are numbered.
 - `approve` stores `{at, by, scope_hash}`.
 - Any change to a scope field makes the stored hash differ; the CLI reports
   "stale approval" in `validate` and withholds the item from `ready`.
-- Status, phase, priority, owns, artifacts, plan, decisions, progress and
-  receipts never affect the hash.
+- Status, phase, priority, owns, artifacts, plan, design, decisions, progress
+  and receipts never affect the hash. `approve` prints the actual scope
+  identity and values with the hash; `review` prints the exact epic and child
+  packet before approval.
 
 This is the mechanism that fixes repeated approval prompts: the approval is
 stable until the *scope* changes, not until any byte changes.
@@ -138,12 +140,14 @@ Reads (bounded projections):
 | `status` | working set + counts | ~15–25 lines (sections capped) |
 | `ready` | startable items, dependencies, overlaps | 1 line/item, first 20 |
 | `brief <id>` | delegation packet | ~20 lines |
+| `review <epic>` | exact epic + child scope packet | one block/item |
 | `deps [id]` | relationships, Mermaid | 1 line/item |
 | `validate` | diagnostics | errors/warnings only |
 | `board` | path to generated HTML | 1 line |
 | `show <id>` | raw record (human/debug only) | whole item |
 
-Writes: `init, new, plan, decide, set, approve, log, result, close, install`.
+Writes: `init, new, plan, design, decide, set, approve, log, result, close,
+install`. Reads include `review` for exact frame approval.
 
 Exit codes: `0` success, `1` validation failure, `2` invalid input. No special
 recovery codes.
@@ -157,8 +161,10 @@ recovery codes.
 - L2 `brief`: when delegating; the only task content the orchestrator reads.
   Prefer delegating by reference (worker runs `brief` itself) so even this
   stays out of the orchestrator's context.
-- L3 `show --section` or one artifact: exceptional; prefer a new bounded
-  question to an explorer.
+- L2 `review <epic>`: the exact frame packet for approval; use it instead of a
+  prose summary.
+- L3 `show --section Plan|Design` or one artifact: exceptional; prefer a new
+  bounded question to an explorer.
 - L4 full report/diff/log: never in the orchestrator; belongs to the verifier
   or a fresh explorer.
 
@@ -231,7 +237,7 @@ groups, checkpoints or coordinating briefs; no auto-commit.
   then it is derived and rebuildable.
 - IDs: `E-NNN`, `T-NNN`, `S-NNN`, allocated by scanning existing items.
 - Approval: scope hash, per item.
-- Roles: orchestrator (plans), explorer, worker, verifier.
+- Roles: orchestrator (plans and designs), explorer, worker, verifier.
 - Board: static read-only HTML.
 - Development: conventional first; dogfood once stable.
 

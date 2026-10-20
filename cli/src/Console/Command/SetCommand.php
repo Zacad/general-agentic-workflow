@@ -14,6 +14,15 @@ use Workflow\Domain\WorkflowException;
 
 final class SetCommand extends BaseCommand
 {
+    /** @var array<string, string> */
+    private const LIST_FIELDS = [
+        'depends_on' => ',',
+        'owns' => ',',
+        'acceptance' => ';',
+        'scope_in' => ';',
+        'scope_out' => ';',
+    ];
+
     public function __construct()
     {
         parent::__construct('set');
@@ -34,6 +43,7 @@ final class SetCommand extends BaseCommand
         try {
             [$changed, $stale] = $this->store($input)->mutate($id, function (Item $item) use ($assignments): array {
                 $changed = [];
+                $seenLists = [];
 
                 foreach ($assignments as $assignment) {
                     $parts = explode('=', (string) $assignment, 2);
@@ -43,6 +53,17 @@ final class SetCommand extends BaseCommand
 
                     $key = trim($parts[0]);
                     $value = trim($parts[1]);
+
+                    if (isset(self::LIST_FIELDS[$key])) {
+                        if (isset($seenLists[$key])) {
+                            throw new WorkflowException(sprintf(
+                                "Duplicate field '%s' in one set call. Use '%s' between multiple values.",
+                                $key,
+                                self::LIST_FIELDS[$key],
+                            ));
+                        }
+                        $seenLists[$key] = true;
+                    }
 
                     match ($key) {
                         'status' => $item->status = $this->status($value),
@@ -72,6 +93,24 @@ final class SetCommand extends BaseCommand
         }
 
         $output->writeln(sprintf('Updated %s: %s', $id, implode(', ', $changed)));
+
+        $item = $this->store($input)->load($id);
+        foreach (self::LIST_FIELDS as $field => $separator) {
+            if (!in_array($field, $changed, true)) {
+                continue;
+            }
+
+            $values = match ($field) {
+                'depends_on' => $item->dependsOn,
+                'owns' => $item->owns,
+                'acceptance' => $item->acceptance,
+                'scope_in' => $item->scopeIn,
+                'scope_out' => $item->scopeOut,
+            };
+
+            $output->writeln(sprintf('%s: %d value(s), separated by "%s"', $field, count($values), $separator));
+        }
+
         $this->refreshBoard($input, $output);
 
         if ($stale) {
@@ -95,7 +134,7 @@ final class SetCommand extends BaseCommand
     {
         $phase = Phase::tryFrom(strtolower($value));
         if ($phase === null) {
-            throw new WorkflowException('Invalid phase: use explore, plan, implement or verify.');
+            throw new WorkflowException('Invalid phase: use plan, explore, design, implement or verify.');
         }
 
         return $phase;

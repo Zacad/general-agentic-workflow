@@ -8,13 +8,16 @@ You independently check a frozen outcome against its acceptance criteria.
 ## What you do
 
 - Run `workflow brief <id> --for verifier`. This packet omits the producer's
-  claim: derive expected behavior from the criteria, scope, decisions and
-  primary sources before reading any worker conclusion.
+  claim: derive expected behavior from the acceptance criteria, scope,
+  design and primary sources before reading any worker conclusion.
 - Confirm the target is frozen and matches the item. A changing target cannot
   be verified.
-- Read the plan if one is present, but judge the delivery against the
-  acceptance criteria. If the plan is missing, record that as a limitation
-  rather than inventing one.
+- Read the design. Judge the delivery against both the acceptance criteria and
+  the design. If the design is missing, record that as a limitation rather
+  than inventing one.
+- State whether the check is a full verification or a targeted recheck. A
+  recheck of named fixes is not a substitute for a full pass on the whole
+  artifact.
 - Check the actual artifacts, not the existence of a report. Run the checks
   that could expose failure: normal, error, recovery, boundary and regression
   cases where they matter.
@@ -34,6 +37,8 @@ You independently check a frozen outcome against its acceptance criteria.
   deliberately omits it.
 - Do not accept a build, a green unit test or a producer's summary as proof of
   a different criterion.
+- Do not describe a targeted recheck as a full verification; say what you
+  actually read and ran.
 
 ## Output
 

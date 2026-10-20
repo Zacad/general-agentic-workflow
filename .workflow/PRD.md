@@ -32,8 +32,8 @@ Scenarios:
 
 - Start a new endeavor, record its requirements and architecture, and
   decompose it into epics and tasks.
-- Approve an item once; then explore, plan, implement and verify it without
-  re-approving routine steps.
+- Approve an item once; then plan, explore, design, implement and verify it
+  without re-approving routine steps.
 - Run independent tasks in parallel without writing over each other.
 - Resume in a fresh session from the records alone.
 - Hand a bounded question to an explorer and receive a short receipt.
@@ -52,8 +52,8 @@ Ranked. Each has an observable check.
    and writes them directly. Check: no state database; deleting any derived
    file loses nothing.
 3. **Low ceremony.** One durable approval per item. Routine status, plan,
-   progress and artifact changes never re-prompt. Check: approval prompts per
-   completed item.
+   design, progress and artifact changes never re-prompt. Check: approval
+   prompts per completed item.
 4. **Bounded artifacts.** Each item is one `item.md` plus, only when needed, an
    `outputs/` directory. No per-invocation directories and no staged project
    copies. Check: `validate` rejects unexpected entries; files per item stay
@@ -96,7 +96,9 @@ Ranked. Each has an observable check.
   dependencies, owned paths, artifacts, approval, timestamps, outcome, scope
   and acceptance criteria.
 - `FR5` Status is `draft`, `todo`, `in-progress`, `done` or `cancelled`.
-- `FR6` Phase is `explore`, `plan`, `implement` or `verify`.
+- `FR6` Phase is `plan`, `explore`, `design`, `implement` or `verify`.
+  `Plan` is the pre-exploration approach; `design` is the post-exploration
+  solution.
 - `FR7` Progress is an append-only `## Progress` section. Receipts are
   appended there in a fixed compact format.
 
@@ -105,7 +107,7 @@ Ranked. Each has an observable check.
 - `FR8` Approval covers only scope-defining fields: kind, parent, title,
   outcome, scope and acceptance criteria, plus dependencies.
 - `FR9` Approval persists across status, phase, priority, ownership, artifact,
-  plan and progress changes.
+  plan, design and progress changes.
 - `FR10` Editing a scope-defining field marks the approval stale; `validate`
   reports it and `ready` withholds the item until re-approval.
 - `FR11` `approve` records who approved and when, and moves a `draft` item to
@@ -120,27 +122,31 @@ Ranked. Each has an observable check.
 - `FR15` `ready` returns startable items with dependency and ownership
   information.
 - `FR16` `brief` returns a bounded delegation packet: identity, approval,
-  dependencies, owned paths, outcome, scope, acceptance, plan and artifacts.
+  dependencies, owned paths, outcome, scope, acceptance, plan, design, parent
+  design and artifacts.
 - `FR17` `result` appends a fixed-format receipt and updates the item's last
   result and artifact list.
 - `FR18` `deps` returns dependency and dependent relationships, and can render
   a Mermaid graph.
-- `FR19` `set` updates mutable fields; `plan` replaces the plan section;
-  `decide` appends a durable decision; `log` appends a progress line; `close`
-  sets a terminal status.
+- `FR19` `set` updates mutable fields; `plan` and `design` replace their
+  sections; `decide` appends a durable decision; `log` appends a progress
+  line; `close` sets a terminal status.
 - `FR20` `validate` checks structure, IDs, parent rules, dependency cycles,
   statuses, approval freshness, owned-path overlap, missing artifacts and
   unexpected files.
 - `FR21` `board` writes a static, escaped, read-only HTML board.
 - `FR22` `install` copies the kit to a target project and initializes it.
 - `FR23` Reads support `--json`. JSON is stable enough for scripts.
+- `FR29` `review` returns an exact epic plus child packet: outcome, scope,
+  acceptance, dependencies, owned paths, approval and plan/design state.
+- `FR30` `approve` prints the actual scope identity and values with the hash.
 
 ### Context discipline
 
 - `FR24` No default command prints a whole `item.md`.
-- `FR25` The orchestrator reads only `status`, `ready`, `brief` and `result`
-  during normal coordination. Full artifacts belong to explorers, workers and
-  verifiers.
+- `FR25` The orchestrator reads only `status`, `ready`, `brief`, `review` and
+  `result` during normal coordination. Full artifacts belong to explorers,
+  workers and verifiers.
 - `FR26` Receipts are fixed-size: status, one- or two-sentence finding,
   artifact paths, decision needed, next action.
 
@@ -167,13 +173,19 @@ Ranked. Each has an observable check.
 8. `board` produces a self-contained HTML file that opens without network.
 9. The PHPUnit suite passes.
 10. The whole agent-facing kit can be read in one sitting.
+11. `design` and `## Design` exist, and `brief`/`validate` expose missing plan
+    or design without turning them into hard gates.
+12. `review` prints the exact epic and child scope, and `approve` prints the
+    actual values it approved.
 
 ## Decisions
 
 - Build fresh in this repository; the previous system is reference only.
 - Markdown is truth; no SQLite, no ORM, no Dolt.
 - One approval per item, over a stable scope hash.
-- Four roles: orchestrator (also plans), explorer, worker, verifier.
+- Plan and design are separate: plan before exploration, design after it.
+- Four roles: orchestrator (also plans and designs), explorer, worker,
+  verifier.
 - Ten skills: critical reasoning, clear communication, workflow CLI,
   requirements, code architecture, UI/UX design, decomposition, verification,
   installation, fresh-session handoff.

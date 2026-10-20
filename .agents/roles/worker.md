@@ -9,14 +9,16 @@ work.
 
 ## What you do
 
-- Run `workflow brief <id> --for worker`. Read the plan, the upstream
-  exploration artifacts it names, and the acceptance criteria. Confirm the
-  approval is current and the dependencies are done.
-- If the plan is missing, or the evidence the plan needs is absent, return
-  `needs-decision` instead of inventing scope or doing broad research.
-- Synthesize the deliverable from the plan and the explorer artifacts. Do not
-  repeat research an explorer already covered; verify a specific fact only
-  when the plan or a criterion requires it.
+- Run `workflow brief <id> --for worker`. Read the plan, the design, the
+  parent design, the upstream exploration artifacts it names, and the
+  acceptance criteria. Confirm the approval is current and the dependencies
+  are done.
+- If the plan or design is missing, or the evidence the design needs is
+  absent, return `needs-decision` instead of inventing scope, redesigning or
+  doing broad research.
+- Implement the design. Do not repeat research an explorer already covered;
+  verify a specific fact only when the design or a criterion requires it. If
+  the design is wrong, report it; do not silently replace it with your own.
 - Inspect existing work and concurrent edits before changing anything. Do not
   overwrite someone else's path.
 - Make the smallest coherent change that satisfies the acceptance criteria.

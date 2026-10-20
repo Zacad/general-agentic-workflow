@@ -7,6 +7,7 @@ namespace Workflow\Tests\Console;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Workflow\Console\Application;
+use Workflow\Store\ItemStore;
 use Workflow\Tests\WorkflowTestCase;
 
 final class CommandTest extends WorkflowTestCase
@@ -484,6 +485,52 @@ final class CommandTest extends WorkflowTestCase
         self::assertStringContainsString('Sequential write works', (string) file_get_contents($this->root.'/.workflow/items/'.$id.'/item.md'));
     }
 
+    public function testReviewPrintsEpicPlanDesignAndChildren(): void
+    {
+        $this->runCli(['command' => 'init', '--name' => 'test']);
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'Epic', '--kind' => 'epic']);
+        $epic = $this->idFrom($output);
+        $this->runCli(['command' => 'set', 'id' => $epic, 'assignments' => ['scope_in=Epic scope', 'acceptance=Epic criterion']]);
+        $this->runCli(['command' => 'plan', 'id' => $epic, '--text' => 'Epic plan.']);
+        $this->runCli(['command' => 'design', 'id' => $epic, '--text' => 'Epic design.']);
+
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'Child', '--kind' => 'task', '--parent' => $epic]);
+        $child = $this->idFrom($output);
+        $this->runCli(['command' => 'set', 'id' => $child, 'assignments' => ['scope_in=Child scope', 'acceptance=Child criterion']]);
+
+        [$exit, $output] = $this->runCli(['command' => 'review', 'id' => $epic]);
+        self::assertSame(0, $exit);
+        self::assertStringContainsString('## Decomposition', $output);
+        self::assertStringContainsString('Epic plan.', $output);
+        self::assertStringContainsString('Epic design.', $output);
+        self::assertStringContainsString($child, $output);
+        self::assertStringContainsString('Child criterion', $output);
+    }
+
+    public function testApprovePrintsActualScopeValues(): void
+    {
+        $this->runCli(['command' => 'init', '--name' => 'test']);
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'Task', '--kind' => 'task']);
+        $id = $this->idFrom($output);
+        $this->runCli(['command' => 'set', 'id' => $id, 'assignments' => [
+            'outcome=Observable outcome',
+            'scope_in=First scope;Second scope',
+            'acceptance=First criterion;Second criterion',
+        ]]);
+
+        [$exit, $output] = $this->runCli(['command' => 'approve', 'id' => $id]);
+        self::assertSame(0, $exit);
+        self::assertStringContainsString('kind: task', $output);
+        self::assertStringContainsString('parent: none', $output);
+        self::assertStringContainsString('title: Task', $output);
+        self::assertStringContainsString('Observable outcome', $output);
+        self::assertStringContainsString('First scope', $output);
+        self::assertStringContainsString('Second scope', $output);
+        self::assertStringContainsString('First criterion', $output);
+        self::assertStringContainsString('Second criterion', $output);
+        self::assertStringContainsString('hash:', $output);
+    }
+
     public function testValidateReportsMissingItemsGracefully(): void
     {
         $this->runCli(['command' => 'init', '--name' => 'test']);
@@ -491,5 +538,106 @@ final class CommandTest extends WorkflowTestCase
         [$exit, $output] = $this->runCli(['command' => 'validate']);
         self::assertSame(0, $exit);
         self::assertStringContainsString('OK', $output);
+    }
+
+    public function testBriefShowsDesignAndParentDesignAndWarnsWhenMissing(): void
+    {
+        $this->runCli(['command' => 'init', '--name' => 'test']);
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'Epic', '--kind' => 'epic']);
+        $epic = $this->idFrom($output);
+        $this->runCli(['command' => 'design', 'id' => $epic, '--text' => 'Epic architecture.']);
+        $this->runCli(['command' => 'plan', 'id' => $epic, '--text' => 'Epic plan.']);
+
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'Task', '--kind' => 'task', '--parent' => $epic]);
+        $task = $this->idFrom($output);
+        $this->runCli(['command' => 'plan', 'id' => $task, '--text' => 'Task plan.']);
+        $this->runCli(['command' => 'set', 'id' => $task, 'assignments' => ['status=in-progress', 'phase=implement']]);
+
+        [$exit, $output] = $this->runCli(['command' => 'brief', 'id' => $task, '--for' => 'worker']);
+        self::assertSame(0, $exit);
+        self::assertStringContainsString('parent design:', $output);
+        self::assertStringContainsString('Epic architecture.', $output);
+        self::assertStringContainsString('no design recorded', $output);
+
+        $this->runCli(['command' => 'design', 'id' => $task, '--text' => 'Task design.']);
+        [, $output] = $this->runCli(['command' => 'brief', 'id' => $task, '--for' => 'worker']);
+        self::assertStringContainsString('Task design.', $output);
+        self::assertStringNotContainsString('no design recorded', $output);
+    }
+
+    public function testExplorerBriefWarnsWhenPlanIsMissing(): void
+    {
+        $this->runCli(['command' => 'init', '--name' => 'test']);
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'Explore', '--kind' => 'task']);
+        $id = $this->idFrom($output);
+        $this->runCli(['command' => 'set', 'id' => $id, 'assignments' => ['status=in-progress', 'phase=explore']]);
+
+        [, $output] = $this->runCli(['command' => 'brief', 'id' => $id, '--for' => 'explorer']);
+        self::assertStringContainsString('no plan recorded', $output);
+    }
+
+    public function testCloseWarnsButDoesNotRefuseWhenDesignIsMissing(): void
+    {
+        $this->runCli(['command' => 'init', '--name' => 'test']);
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'No design', '--kind' => 'task']);
+        $id = $this->idFrom($output);
+        $this->runCli(['command' => 'approve', 'id' => $id]);
+        $this->runCli(['command' => 'result', 'id' => $id, '--role' => 'verifier', '--status' => 'done', '--finding' => 'Checked.']);
+
+        [$exit, $output] = $this->runCli(['command' => 'close', 'id' => $id, '--status' => 'done']);
+        self::assertSame(0, $exit);
+        self::assertStringContainsString('without a design', $output);
+    }
+
+    public function testDesignCommandAndPlanDefault(): void
+    {
+        $this->runCli(['command' => 'init', '--name' => 'test']);
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'Design me', '--kind' => 'epic']);
+        $id = $this->idFrom($output);
+
+        $item = (new ItemStore($this->root))->load($id);
+        self::assertSame('plan', $item->phase->value);
+        self::assertStringContainsString('## Design', $item->body);
+
+        [$exit] = $this->runCli([
+            'command' => 'design',
+            'id' => $id,
+            '--text' => "1. Canonical numbers.\n2. Section outline.",
+        ]);
+        self::assertSame(0, $exit);
+
+        [$exit, $output] = $this->runCli(['command' => 'show', 'id' => $id, '--section' => 'Design']);
+        self::assertSame(0, $exit);
+        self::assertStringContainsString('Canonical numbers.', $output);
+
+        [$exit] = $this->runCli(['command' => 'set', 'id' => $id, 'assignments' => ['phase=design']]);
+        self::assertSame(0, $exit);
+    }
+
+    public function testSetRejectsDuplicateListFieldsAndAcceptsSemicolonValues(): void
+    {
+        $this->runCli(['command' => 'init', '--name' => 'test']);
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'Item', '--kind' => 'epic']);
+        $id = $this->idFrom($output);
+
+        [$exit, $output] = $this->runCli([
+            'command' => 'set',
+            'id' => $id,
+            'assignments' => ['scope_in=a', 'scope_in=b'],
+        ]);
+        self::assertSame(2, $exit);
+        self::assertStringContainsString("Duplicate field 'scope_in'", $output);
+
+        [$exit, $output] = $this->runCli([
+            'command' => 'set',
+            'id' => $id,
+            'assignments' => ['scope_in=a;b', 'acceptance=c1;c2'],
+        ]);
+        self::assertSame(0, $exit);
+        self::assertStringContainsString('scope_in: 2 value(s)', $output);
+
+        $item = (new ItemStore($this->root))->load($id);
+        self::assertSame(['a', 'b'], $item->scopeIn);
+        self::assertSame(['c1', 'c2'], $item->acceptance);
     }
 }

@@ -3,9 +3,9 @@
 A small, Markdown-first workflow for coordinating LLM agents on real work.
 
 The orchestrator coordinates. It does **not** read the work. It works through
-four bounded commands — `status`, `ready`, `brief` (reads) and `result`
-(record a receipt) — while explorers, workers and verifiers read sources and
-artifacts in their own context and return a short receipt.
+five bounded commands — `status`, `ready`, `brief`, `review` (reads) and
+`result` (record a receipt) — while explorers, workers and verifiers read
+sources and artifacts in their own context and return a short receipt.
 
 ## Why it is shaped this way
 
@@ -15,7 +15,9 @@ artifacts in their own context and return a short receipt.
 - **Durable state.** Markdown in the repository is the source of truth. A fresh
   session resumes from `status` plus one `brief`.
 - **One approval.** Approval covers the item's scope and survives status,
-  plan, progress and artifact changes. Only a real scope change re-prompts.
+  plan, design, progress and artifact changes. Present the exact records
+  (`workflow review <epic>`) rather than a summary; only a real scope change
+  re-prompts.
 - **Bounded files.** One `item.md` per item, an optional `outputs/` directory,
   and an append-only progress log. No per-attempt directories, no copied
   projects, no databases.
@@ -51,6 +53,10 @@ cli/bin/workflow set T-001 \
   'scope_out=Schema migration'
 cli/bin/workflow approve T-001 --by adam
 
+# Plan before exploration, design after it.
+cli/bin/workflow plan T-001 --text "Question, dimensions, sources, stop conditions."
+cli/bin/workflow design T-001 --text "Outline, canonical values, decisions, checks."
+
 # Daily coordination.
 cli/bin/workflow status
 cli/bin/workflow ready
@@ -82,7 +88,7 @@ kind: task                # epic | task | subtask
 parent: T-001
 title: Parse YAML front matter
 status: todo              # draft | todo | in-progress | done | cancelled
-phase: explore            # explore | plan | implement | verify
+phase: plan               # plan | explore | design | implement | verify
 priority: 2
 depends_on: []
 owns: [cli/src/Domain/]
@@ -101,17 +107,25 @@ rewrite after a manual edit.
 ## The loop
 
 1. **Frame** — outcome, scope, acceptance, dependencies, owned paths.
-2. **Explore** — bounded questions: codebase, web/prior art, analysis, spikes.
-3. **Plan** — write the plan; split only into independently acceptable parts.
-4. **Implement** — the worker changes owned paths only.
-5. **Verify** — an independent verifier checks the frozen artifacts.
-6. **Close** — done or cancelled.
+2. **Plan** — pre-exploration approach: question, dimensions, sources, stop
+   conditions, acceptance mapping.
+3. **Explore** — bounded questions: codebase, web/prior art, analysis, spikes.
+4. **Design** — post-exploration solution: outline, canonical claims or
+   numbers, decisions, trade-offs, checks, risks. At epic level: guide or
+   system architecture, child decomposition and coverage.
+5. **Implement** — the worker changes owned paths only and implements the
+   design.
+6. **Verify** — an independent verifier checks the frozen artifacts against
+   acceptance and design.
+7. **Close** — done or cancelled.
 
-Phases and hierarchy are guidance, not a state machine. The CLI enforces only
-what prevents corruption. The loop is explicit: explore with explorer
-questions, write a plan, implement, verify with a blinded verifier brief, then
-close. Each role gets `workflow brief <id> --for <role>`. A done closure
-without a verifier receipt is refused unless `--force` is used deliberately.
+Apply the loop to every epic, task and subtask. For multi-dimensional work,
+run a discovery/design task before framing the implementation children, then
+present the exact `workflow review <epic>` packet for approval. Phases and
+hierarchy are guidance, not a state machine. The CLI enforces only what
+prevents corruption; it warns when a plan or design is missing. Each role gets
+`workflow brief <id> --for <role>`. A done closure without a verifier receipt
+is refused unless `--force` is used deliberately.
 
 ## Commands
 
@@ -122,7 +136,9 @@ without a verifier receipt is refused unless `--force` is used deliberately.
 | `status` | working set: active, ready, waiting, decisions |
 | `ready` | startable work with dependency and overlap facts |
 | `brief <id> --for role` | bounded delegation packet |
+| `review <epic>` | exact epic + child scope packet for approval |
 | `plan <id>` | replace the `## Plan` section from text or a file |
+| `design <id>` | replace the `## Design` section from text or a file |
 | `decide <id>` | append a durable decision |
 | `result <id>` | append a receipt |
 | `deps [id]` | dependency relationships or a Mermaid graph |
@@ -139,14 +155,15 @@ All reads support `--json`.
 
 ## Roles and skills
 
-- Orchestrator — plans, frames, delegates, records, resumes.
+- Orchestrator — plans, frames, decomposes, delegates, records, resumes.
 - Explorer — answers one bounded question with primary evidence.
-- Worker — delivers one approved outcome within owned paths.
-- Verifier — checks the frozen artifacts independently.
+- Worker — implements the approved design within owned paths.
+- Verifier — checks the frozen artifacts against acceptance and design.
 
-Delegation is by reference and role-specific: the explorer gets the
-`outputs/` target, the worker gets the plan and upstream artifacts, and the
-verifier gets a brief with the producer claim omitted.
+Delegation is by reference and role-specific: the explorer gets the plan and
+`outputs/` target, the worker gets the plan, design, parent design and upstream
+artifacts, and the verifier gets the acceptance criteria and design with the
+producer claim omitted.
 
 Skills: `critical-reasoning`, `clear-communication`, `workflow-cli`,
 `requirements`, `code-architecture`, `ui-ux-design`, `decompose-work`,
