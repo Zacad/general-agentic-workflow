@@ -172,7 +172,7 @@ final class CommandTest extends WorkflowTestCase
         self::assertNotContains($b, array_column($ready, 'id'));
 
         // Completing A makes B ready.
-        $this->runCli(['command' => 'close', 'id' => $a, '--status' => 'done']);
+        $this->runCli(['command' => 'close', 'id' => $a, '--status' => 'done', '--force' => true]);
         [, $output] = $this->runCli(['command' => 'ready', '--json' => true]);
         $ready = json_decode($output, true, flags: JSON_THROW_ON_ERROR);
         self::assertContains($b, array_column($ready, 'id'));
@@ -243,7 +243,7 @@ final class CommandTest extends WorkflowTestCase
         self::assertStringContainsString('Renamed title', $html);
         self::assertStringContainsString('p7', $html);
 
-        $this->runCli(['command' => 'close', 'id' => $id, '--status' => 'done']);
+        $this->runCli(['command' => 'close', 'id' => $id, '--status' => 'done', '--force' => true]);
         $html = (string) file_get_contents($board);
         self::assertStringContainsString('Done <span class="count">1</span>', $html);
         self::assertStringContainsString('Renamed title', $html);
@@ -262,6 +262,83 @@ final class CommandTest extends WorkflowTestCase
         self::assertSame(0, $exit);
         $data = json_decode($output, true, flags: JSON_THROW_ON_ERROR);
         self::assertSame('T-001', $data['id']);
+    }
+
+    public function testCloseDoneRequiresVerifierReceipt(): void
+    {
+        $this->runCli(['command' => 'init', '--name' => 'test']);
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'Unverified', '--kind' => 'epic']);
+        $id = $this->idFrom($output);
+        $this->runCli(['command' => 'approve', 'id' => $id]);
+
+        [$exit, $output] = $this->runCli(['command' => 'close', 'id' => $id, '--status' => 'done']);
+        self::assertSame(1, $exit);
+        self::assertStringContainsString('no verifier receipt', $output);
+
+        $this->runCli([
+            'command' => 'result',
+            'id' => $id,
+            '--role' => 'verifier',
+            '--status' => 'done',
+            '--finding' => 'Checked against the criteria.',
+        ]);
+
+        [$exit, $output] = $this->runCli(['command' => 'close', 'id' => $id, '--status' => 'done']);
+        self::assertSame(0, $exit, $output);
+    }
+
+    public function testCloseForceOverridesVerifierRequirement(): void
+    {
+        $this->runCli(['command' => 'init', '--name' => 'test']);
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'Forced close', '--kind' => 'epic']);
+        $id = $this->idFrom($output);
+        $this->runCli(['command' => 'approve', 'id' => $id]);
+
+        [$exit, $output] = $this->runCli([
+            'command' => 'close',
+            'id' => $id,
+            '--status' => 'done',
+            '--force' => true,
+        ]);
+
+        self::assertSame(0, $exit, $output);
+        self::assertStringContainsString('forced', $output);
+    }
+
+    public function testValidateWarnsAboutMissingPlanBeforeImplementation(): void
+    {
+        $this->runCli(['command' => 'init', '--name' => 'test']);
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'Planned later', '--kind' => 'epic']);
+        $id = $this->idFrom($output);
+        $this->runCli(['command' => 'approve', 'id' => $id]);
+        $this->runCli(['command' => 'set', 'id' => $id, 'assignments' => ['status=in-progress', 'phase=implement']]);
+
+        [$exit, $output] = $this->runCli(['command' => 'validate']);
+        self::assertSame(0, $exit);
+        self::assertStringContainsString('implement without a plan', $output);
+
+        $this->runCli(['command' => 'plan', 'id' => $id, '--text' => '1. Do the work.']);
+
+        [$exit, $output] = $this->runCli(['command' => 'validate']);
+        self::assertSame(0, $exit);
+        self::assertStringNotContainsString('without a plan', $output);
+    }
+
+    public function testBriefWarnsAboutMissingPlanInImplementation(): void
+    {
+        $this->runCli(['command' => 'init', '--name' => 'test']);
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'Brief without plan', '--kind' => 'epic']);
+        $id = $this->idFrom($output);
+        $this->runCli(['command' => 'approve', 'id' => $id]);
+        $this->runCli(['command' => 'set', 'id' => $id, 'assignments' => ['status=in-progress', 'phase=implement']]);
+
+        [, $output] = $this->runCli(['command' => 'brief', 'id' => $id]);
+        self::assertStringContainsString('no plan recorded', $output);
+
+        $this->runCli(['command' => 'plan', 'id' => $id, '--text' => '1. Do the work.']);
+
+        [, $output] = $this->runCli(['command' => 'brief', 'id' => $id]);
+        self::assertStringNotContainsString('no plan recorded', $output);
     }
 
     public function testStatusCapsLongSections(): void
@@ -310,7 +387,7 @@ final class CommandTest extends WorkflowTestCase
         ]);
         $child = $this->idFrom($output);
 
-        [$exit, $output] = $this->runCli(['command' => 'close', 'id' => $epic, '--status' => 'done']);
+        [$exit, $output] = $this->runCli(['command' => 'close', 'id' => $epic, '--status' => 'done', '--force' => true]);
         self::assertSame(0, $exit);
         self::assertStringContainsString('children still open: '.$child, $output);
     }

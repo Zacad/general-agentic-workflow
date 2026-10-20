@@ -5,13 +5,15 @@ description: Independently check a frozen outcome against its acceptance criteri
 
 # Verify an outcome
 
-**Inputs:** the item's brief (acceptance criteria, scope, decisions), the
-frozen artifact paths, and the verifier's own result artifact.
+**Inputs:** the item's verifier brief (`workflow brief <id> --for verifier`:
+acceptance criteria, scope, decisions), the frozen artifact paths, and the
+verifier's own result artifact.
 
 ## Procedure
 
-1. Before reading the worker's conclusion, derive expected behavior from the
-   acceptance criteria and primary sources.
+1. Use the verifier brief, which omits the producer claim. Before reading any
+   worker conclusion, derive expected behavior from the acceptance criteria
+   and primary sources.
 2. Confirm the target is frozen and matches the item. A changing target cannot
    be verified.
 3. Check the artifact itself, not the existence of a report. Run the commands
@@ -28,6 +30,8 @@ frozen artifact paths, and the verifier's own result artifact.
    prerequisites leave the criterion unverified; do not install or repair.
 6. Preserve the failed target. A repair needs a new named target and a new
    check.
+7. Return a verifier receipt. The orchestrator records it with
+   `--role verifier` before closing the item.
 
 ## Output
 

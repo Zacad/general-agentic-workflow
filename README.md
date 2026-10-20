@@ -54,7 +54,7 @@ cli/bin/workflow approve T-001 --by adam
 # Daily coordination.
 cli/bin/workflow status
 cli/bin/workflow ready
-cli/bin/workflow brief T-001
+cli/bin/workflow brief T-001 --for worker
 cli/bin/workflow result T-001 --status done --finding "Codec implemented; 14 tests pass." \
   --artifacts cli/src/Domain/FrontMatter.php --next verify
 cli/bin/workflow board
@@ -108,7 +108,10 @@ rewrite after a manual edit.
 6. **Close** — done or cancelled.
 
 Phases and hierarchy are guidance, not a state machine. The CLI enforces only
-what prevents corruption.
+what prevents corruption. The loop is explicit: explore with explorer
+questions, write a plan, implement, verify with a blinded verifier brief, then
+close. Each role gets `workflow brief <id> --for <role>`. A done closure
+without a verifier receipt is refused unless `--force` is used deliberately.
 
 ## Commands
 
@@ -118,7 +121,7 @@ what prevents corruption.
 | `new` | create a draft item |
 | `status` | working set: active, ready, waiting, decisions |
 | `ready` | startable work with dependency and overlap facts |
-| `brief <id>` | bounded delegation packet |
+| `brief <id> --for role` | bounded delegation packet |
 | `plan <id>` | replace the `## Plan` section from text or a file |
 | `decide <id>` | append a durable decision |
 | `result <id>` | append a receipt |
@@ -126,7 +129,7 @@ what prevents corruption.
 | `set <id>` | update mutable fields |
 | `approve <id>` | approve the current scope |
 | `log <id>` | append a progress line |
-| `close <id>` | mark done or cancelled |
+| `close <id>` | mark done or cancelled; done needs a verifier receipt |
 | `validate` | structure, dependencies, approval, layout |
 | `board` | write the static HTML board |
 | `show <id>` | raw record (human/debug) |
@@ -140,6 +143,10 @@ All reads support `--json`.
 - Explorer — answers one bounded question with primary evidence.
 - Worker — delivers one approved outcome within owned paths.
 - Verifier — checks the frozen artifacts independently.
+
+Delegation is by reference and role-specific: the explorer gets the
+`outputs/` target, the worker gets the plan and upstream artifacts, and the
+verifier gets a brief with the producer claim omitted.
 
 Skills: `critical-reasoning`, `clear-communication`, `workflow-cli`,
 `requirements`, `code-architecture`, `ui-ux-design`, `decompose-work`,

@@ -72,6 +72,7 @@ final class ItemValidator
         $this->validateParents($items, $result);
         $this->validateDependencies($items, $result);
         $this->validateApprovals($items, $result);
+        $this->validatePlans($items, $result);
         $this->validateArtifacts($items, $result);
         $this->validateOwnership($items, $result);
 
@@ -245,6 +246,31 @@ final class ItemValidator
                     implode(', ', $openChildren),
                 ));
             }
+        }
+    }
+
+    /**
+     * @param array<string, Item> $items
+     */
+    private function validatePlans(array $items, ValidationResult $result): void
+    {
+        foreach ($items as $item) {
+            if (!in_array($item->status->value, ['todo', 'in-progress'], true)) {
+                continue;
+            }
+            if (!in_array($item->phase->value, ['implement', 'verify'], true)) {
+                continue;
+            }
+            if (trim($item->section('Plan')) !== '') {
+                continue;
+            }
+
+            $result->warning(sprintf(
+                '%s: %s without a plan; run "workflow plan %s".',
+                $item->id,
+                $item->phase->value,
+                $item->id,
+            ));
         }
     }
 

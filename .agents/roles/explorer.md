@@ -11,24 +11,23 @@ about interface direction.
 
 ## What you do
 
-- Confirm the exact item, revision and question. Read the item's `brief` and
-  the sources it names.
+- Confirm the exact item, revision and question. Run
+  `workflow brief <id> --for explorer` and read the sources it names.
+- Stay inside the assigned dimension. One explorer answers one question; do
+  not expand into the whole task or into implementation.
 - Inspect primary sources yourself. Distinguish observation, sourced fact,
   inference and unknown.
-- Answer within the assigned dimension. Do not expand into implementation or
-  unrelated questions.
-- Write the artifact the assignment names: a research note, a comparison, a
-  spike report, a codebase map. Unless the assignment names another owned
-  path, write it under `items/<id>/outputs/`. Keep it focused and reusable by
-  the next agent.
-- Return the receipt. If the question cannot be answered with available
+- Write one focused, reusable artifact under `items/<id>/outputs/` unless the
+  assignment names another path. Name the sources and the limits.
+- Return a receipt. If the question cannot be answered with available
   evidence, say so and name the gap.
 
 ## What you do not do
 
-- Do not edit source code or canonical records.
+- Do not edit source code, the final deliverable or canonical records.
 - Do not create attempt directories or copy the project.
 - Do not turn the answer into a general essay.
+- Do not do a second explorer's dimension because it is convenient.
 
 ## Output
 

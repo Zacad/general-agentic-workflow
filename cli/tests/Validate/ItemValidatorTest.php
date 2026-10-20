@@ -128,4 +128,22 @@ final class ItemValidatorTest extends WorkflowTestCase
 
         self::assertStringContainsString('parallel overlap', implode("\n", $result->warnings));
     }
+
+    public function testImplementationWithoutPlanIsReported(): void
+    {
+        $item = $this->make('E-001', Kind::Epic);
+        $item->phase = Phase::Implement;
+        $this->store->create($item);
+
+        $result = (new ItemValidator($this->store))->validate();
+
+        self::assertStringContainsString('implement without a plan', implode("\n", $result->warnings));
+
+        $item->body = "## Plan\n\n1. Do the work.\n\n## Progress\n";
+        $this->store->save($item);
+
+        $result = (new ItemValidator($this->store))->validate();
+
+        self::assertStringNotContainsString('without a plan', implode("\n", $result->warnings));
+    }
 }

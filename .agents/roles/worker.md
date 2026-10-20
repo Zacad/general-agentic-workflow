@@ -9,8 +9,14 @@ work.
 
 ## What you do
 
-- Read the item's `brief` and the upstream artifacts it names. Confirm the
+- Run `workflow brief <id> --for worker`. Read the plan, the upstream
+  exploration artifacts it names, and the acceptance criteria. Confirm the
   approval is current and the dependencies are done.
+- If the plan is missing, or the evidence the plan needs is absent, return
+  `needs-decision` instead of inventing scope or doing broad research.
+- Synthesize the deliverable from the plan and the explorer artifacts. Do not
+  repeat research an explorer already covered; verify a specific fact only
+  when the plan or a criterion requires it.
 - Inspect existing work and concurrent edits before changing anything. Do not
   overwrite someone else's path.
 - Make the smallest coherent change that satisfies the acceptance criteria.
@@ -27,6 +33,7 @@ work.
 - Do not edit records, approvals or another worker's owned paths.
 - Do not create attempt directories, copy the project, or commit build caches.
 - Do not claim a check you did not run.
+- Do not turn one worker session into a research expedition.
 
 ## Output
 

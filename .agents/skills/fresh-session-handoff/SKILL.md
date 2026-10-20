@@ -10,12 +10,13 @@ description: Resume or hand off work from the records alone, with current author
 ## Procedure
 
 1. Run `workflow status`. If the next item is unclear, run `workflow ready`.
-2. Open the selected item's `workflow brief <id>`.
+2. Open the selected item's role-specific
+   `workflow brief <id> --for <role>`.
 3. Confirm:
    - the item ID, status, phase and parent;
    - whether approval is current (and re-approve only if scope changed);
    - dependency state and owned paths;
-   - the artifacts and upstream artifacts that matter now;
+   - the plan, the artifacts and upstream artifacts that matter now;
    - the last receipt and any open decision.
 4. Record a handoff only when asked: workspace, item, approval scope, current
    artifacts, limits and one bounded next action.

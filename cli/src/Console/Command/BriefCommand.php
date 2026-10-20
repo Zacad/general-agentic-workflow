@@ -102,6 +102,14 @@ final class BriefCommand extends BaseCommand
             }
         }
 
+        if (
+            $plan === ''
+            && in_array($item->status->value, ['todo', 'in-progress'], true)
+            && in_array($item->phase->value, ['implement', 'verify'], true)
+        ) {
+            $output->writeln('<comment>warning: no plan recorded; run "workflow plan '.$item->id.'" before delegating.</comment>');
+        }
+
         if ($role === 'explorer') {
             $output->writeln('write: items/'.$item->id.'/outputs/ (one focused research artifact)');
         }

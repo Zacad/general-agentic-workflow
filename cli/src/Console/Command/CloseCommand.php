@@ -10,6 +10,7 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Workflow\Domain\Item;
 use Workflow\Domain\Status;
+use Workflow\Domain\WorkflowException;
 use Workflow\Support\Clock;
 
 final class CloseCommand extends BaseCommand
@@ -25,6 +26,7 @@ final class CloseCommand extends BaseCommand
             ->addArgument('id', InputArgument::REQUIRED, 'Item ID.')
             ->addOption('status', null, InputOption::VALUE_REQUIRED, 'done or cancelled.', 'done')
             ->addOption('reason', null, InputOption::VALUE_REQUIRED, 'Reason for cancellation or closure.')
+            ->addOption('force', null, InputOption::VALUE_NONE, 'Close done without a verifier receipt.')
             ->addOption('json', null, InputOption::VALUE_NONE, 'Emit JSON.');
     }
 
@@ -41,17 +43,33 @@ final class CloseCommand extends BaseCommand
         $reason = trim((string) $input->getOption('reason'));
         $at = Clock::now();
         $store = $this->store($input);
+        $force = (bool) $input->getOption('force');
 
-        $result = $store->mutate($id, function (Item $item) use ($store, $status, $reason, $at): array {
-            $item->status = $status;
-            $entry = sprintf('- %s · closed as %s', $at, $status->value);
-            if ($reason !== '') {
-                $entry .= "\n  Reason: ".$reason;
-            }
-            $store->appendProgress($item, $entry);
+        try {
+            $result = $store->mutate($id, function (Item $item) use ($store, $status, $reason, $at, $force): array {
+                if ($status === Status::Done && $item->verifiedAt === null && !$force) {
+                    throw new WorkflowException(sprintf(
+                        '%s: no verifier receipt; record one with "workflow result %s --role verifier ..." or pass --force.',
+                        $item->id,
+                        $item->id,
+                    ));
+                }
 
-            return ['verified' => $item->verifiedAt !== null];
-        });
+                $item->status = $status;
+                $entry = sprintf('- %s · closed as %s', $at, $status->value);
+                if ($reason !== '') {
+                    $entry .= "\n  Reason: ".$reason;
+                }
+                $store->appendProgress($item, $entry);
+
+                return ['verified' => $item->verifiedAt !== null];
+            });
+        } catch (WorkflowException $exception) {
+            $output->writeln('<error>'.$exception->getMessage().'</error>');
+
+            return self::FAILURE;
+        }
+
         $this->refreshBoard($input, $output);
 
         if ($input->getOption('json')) {
@@ -78,7 +96,7 @@ final class CloseCommand extends BaseCommand
         }
 
         if ($status === Status::Done && !$result['verified']) {
-            $output->writeln('<comment>warning: no verifier receipt recorded for this item.</comment>');
+            $output->writeln('<comment>warning: closed done without a verifier receipt (forced).</comment>');
         }
 
         if ($status === Status::Cancelled && $reason === '') {

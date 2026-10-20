@@ -20,7 +20,7 @@ run `workflow ready`.
 | --- | --- |
 | `status [--all]` | working set: active, ready, waiting, decisions, counts |
 | `ready [--all]` | startable items; flags owned-path overlaps |
-| `brief ID [--for role]` | the delegation packet |
+| `brief ID --for role` | the delegation packet: `explorer`, `worker` or `verifier` |
 | `deps [ID] [--graph]` | dependencies, dependents, Mermaid |
 | `validate` | parents, cycles, approvals, artifacts, layout |
 | `show ID [--section Name]` | human/debug only |
@@ -31,8 +31,21 @@ Default output is bounded: `status` caps each section, `ready` shows the first
 `--json`.
 
 **Never read a whole `item.md` in the orchestrator.** Use `brief`. Prefer
-delegating by reference: give the worker the ID and tell it to run `brief`
-itself, so the packet stays in the worker's context.
+delegating by reference: give the role the ID and tell it to run the
+role-specific brief, so the packet stays in that role's context.
+
+### Role-specific briefs
+
+Always pass `--for`; the default is the worker brief.
+
+| Role | Command | Effect |
+| --- | --- | --- |
+| Explorer | `brief ID --for explorer` | adds the `items/<id>/outputs/` artifact target |
+| Worker | `brief ID --for worker` | includes plan, upstream artifacts and the last result |
+| Verifier | `brief ID --for verifier` | omits the producer claim so expectations come from the criteria first |
+
+A verifier that runs plain `brief ID` sees the worker's last result and loses
+the intended blinding. Use `--for verifier` every time.
 
 ## Writes
 
@@ -45,8 +58,8 @@ itself, so the packet stays in the worker's context.
 | `set ID key=value ...` | status, phase, parent, title, outcome, priority, depends_on, owns, acceptance, scope_in, scope_out |
 | `approve ID [--by name]` | approve the current scope; moves draft to todo |
 | `log ID "..."` | append a progress line |
-| `result ID --status ... --finding "..."` | record a receipt |
-| `close ID [--status done\|cancelled] [--reason "..."]` | terminal status |
+| `result ID --status ... --finding "..."` | record a receipt; use `--role verifier` for a verifier |
+| `close ID [--status done\|cancelled] [--reason "..."]` | terminal status; done needs a verifier receipt unless `--force` |
 | `install DIR` | copy the kit into another project |
 
 Only the orchestrator mutates records. Workers write artifacts and return a
@@ -56,7 +69,26 @@ artifacts never invalidate it. Re-approve only after a scope edit.
 
 A receipt is fixed: `status` (`done`, `blocked`, `needs-decision`, `failed`),
 one- or two-sentence `finding`, `artifacts`, `decision`, `next`. A verifier
-`done` receipt sets `verified_at`.
+`done` receipt sets `verified_at` only when recorded with `--role verifier`.
+Then close the item. `close --status done` without a verifier receipt is
+refused unless `--force` is passed deliberately.
+
+## Phase and plan discipline
+
+Use the phases as a working sequence, not decoration:
+
+1. `new` creates a draft in `explore` by default.
+2. Approve the scope. The item is `todo`.
+3. Explore with `brief --for explorer`; artifacts go under `items/<id>/outputs/`.
+4. `workflow plan ID --file F` (or `--text`), then `set ID phase=plan`.
+5. `set ID status=in-progress phase=implement`; a worker reads
+   `brief --for worker` and writes the owned deliverable.
+6. `set ID phase=verify`; a verifier reads `brief --for verifier`, checks the
+   criteria and returns a verifier receipt.
+7. `result ID --role verifier ...`, then `close ID`.
+
+`brief` and `validate` warn when an open implement or verify item has no
+plan. A short plan is enough; an empty plan is not.
 
 ## Exit codes
 
