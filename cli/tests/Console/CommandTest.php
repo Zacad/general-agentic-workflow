@@ -640,4 +640,96 @@ final class CommandTest extends WorkflowTestCase
         self::assertSame(['a', 'b'], $item->scopeIn);
         self::assertSame(['c1', 'c2'], $item->acceptance);
     }
+
+    public function testBriefAndReviewPreservePolishCharacters(): void
+    {
+        $this->runCli(['command' => 'init', '--name' => 'test']);
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'Epic', '--kind' => 'epic']);
+        $epic = $this->idFrom($output);
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'Task', '--parent' => $epic]);
+        $task = $this->idFrom($output);
+
+        [$exit] = $this->runCli([
+            'command' => 'plan',
+            'id' => $task,
+            '--text' => "**Pytanie:** Czy pociągi mają być opisane?\n\n**Stop:** sprawdzają to źródła.",
+        ]);
+        self::assertSame(0, $exit);
+
+        [$exit, $output] = $this->runCli(['command' => 'brief', 'id' => $task, '--for' => 'worker']);
+        self::assertSame(0, $exit);
+        self::assertTrue(mb_check_encoding($output, 'UTF-8'));
+        self::assertStringContainsString('pociągi', $output);
+        self::assertStringContainsString('mają', $output);
+
+        [$exit, $output] = $this->runCli(['command' => 'review', 'id' => $epic]);
+        self::assertSame(0, $exit);
+        self::assertTrue(mb_check_encoding($output, 'UTF-8'));
+        self::assertStringContainsString('sprawdzają', $output);
+    }
+
+    public function testPlanWithTopLevelSubsectionsDoesNotDuplicate(): void
+    {
+        $this->runCli(['command' => 'init', '--name' => 'test']);
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'Task', '--kind' => 'task']);
+        $id = $this->idFrom($output);
+        $path = $this->root.'/.workflow/items/'.$id.'/item.md';
+
+        $this->runCli([
+            'command' => 'plan',
+            'id' => $id,
+            '--text' => "**Cel:** pierwszy\n\n## 1. Etap\nstary",
+        ]);
+        $this->runCli([
+            'command' => 'plan',
+            'id' => $id,
+            '--text' => "**Cel:** drugi\n\n## 1. Etap\nnowy",
+        ]);
+
+        $body = (string) file_get_contents($path);
+        self::assertSame(1, substr_count($body, '## Plan'));
+        self::assertSame(1, substr_count($body, '## 1. Etap'));
+        self::assertStringContainsString('drugi', $body);
+        self::assertStringNotContainsString('pierwszy', $body);
+    }
+
+    public function testReplacingASectionCollapsesAnExistingDuplicate(): void
+    {
+        $this->runCli(['command' => 'init', '--name' => 'test']);
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'Task', '--kind' => 'task']);
+        $id = $this->idFrom($output);
+        $path = $this->root.'/.workflow/items/'.$id.'/item.md';
+
+        $body = (string) file_get_contents($path);
+        $body = str_replace("## Design", "## Plan\n\nstary plan\n\n## Design", $body);
+        file_put_contents($path, $body);
+
+        $this->runCli(['command' => 'plan', 'id' => $id, '--text' => 'nowy plan']);
+
+        $body = (string) file_get_contents($path);
+        self::assertSame(1, substr_count($body, '## Plan'));
+        self::assertStringContainsString('nowy plan', $body);
+        self::assertStringNotContainsString('stary plan', $body);
+    }
+
+    public function testValidateWarnsAboutDuplicateAndUnexpectedHeadings(): void
+    {
+        $this->runCli(['command' => 'init', '--name' => 'test']);
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'Task', '--kind' => 'task']);
+        $id = $this->idFrom($output);
+        $path = $this->root.'/.workflow/items/'.$id.'/item.md';
+
+        $body = (string) file_get_contents($path);
+        $body = str_replace(
+            "## Design",
+            "## Plan\n\nduplicate\n\n## 1. Not a section\n\n## Design",
+            $body,
+        );
+        file_put_contents($path, $body);
+
+        [$exit, $output] = $this->runCli(['command' => 'validate']);
+        self::assertSame(0, $exit);
+        self::assertStringContainsString('## Plan appears 2 times', $output);
+        self::assertStringContainsString('unexpected top-level heading "## 1. Not a section"', $output);
+    }
 }

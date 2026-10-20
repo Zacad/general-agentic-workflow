@@ -102,7 +102,7 @@ final class BriefCommand extends BaseCommand
         if ($plan === '') {
             $output->writeln('  (not written yet)');
         } else {
-            foreach (preg_split('/\R/', $plan) ?: [] as $line) {
+            foreach (preg_split('/\R/u', $plan) ?: [] as $line) {
                 $output->writeln('  '.$line);
             }
         }
@@ -115,7 +115,7 @@ final class BriefCommand extends BaseCommand
 
         if ($parentDesign !== '') {
             $output->writeln('parent design:');
-            foreach (preg_split('/\R/', $parentDesign) ?: [] as $line) {
+            foreach (preg_split('/\R/u', $parentDesign) ?: [] as $line) {
                 $output->writeln('  '.$line);
             }
         }
@@ -124,7 +124,7 @@ final class BriefCommand extends BaseCommand
         if ($design === '') {
             $output->writeln('  (not written yet)');
         } else {
-            foreach (preg_split('/\R/', $design) ?: [] as $line) {
+            foreach (preg_split('/\R/u', $design) ?: [] as $line) {
                 $output->writeln('  '.$line);
             }
         }
@@ -148,7 +148,7 @@ final class BriefCommand extends BaseCommand
 
         if ($decisions !== '') {
             $output->writeln('decisions:');
-            foreach (preg_split('/\R/', $decisions) ?: [] as $line) {
+            foreach (preg_split('/\R/u', $decisions) ?: [] as $line) {
                 $output->writeln('  '.$line);
             }
         }

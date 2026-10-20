@@ -161,7 +161,7 @@ final class ReviewCommand extends BaseCommand
                 continue;
             }
             $output->writeln($indent.strtolower($section).':');
-            foreach (preg_split('/\R/', $text) ?: [] as $line) {
+            foreach (preg_split('/\R/u', $text) ?: [] as $line) {
                 $output->writeln($indent.'  '.$line);
             }
         }

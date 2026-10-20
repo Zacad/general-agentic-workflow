@@ -6,6 +6,9 @@ namespace Workflow\Domain;
 
 final class Item
 {
+    /** Top-level item sections. Any other "## " heading is content or an error. */
+    public const SECTIONS = ['Plan', 'Design', 'Progress', 'Decisions'];
+
     private const KNOWN_KEYS = [
         'id', 'kind', 'parent', 'title', 'status', 'phase', 'priority',
         'depends_on', 'owns', 'artifacts', 'approval', 'last_result',
@@ -186,11 +189,33 @@ final class Item
         $start = $match[0][1] + strlen($match[0][0]);
         $rest = substr($this->body, $start);
 
-        if (preg_match('/^##[ \t]+/m', $rest, $next, PREG_OFFSET_CAPTURE)) {
+        if (preg_match('/'.self::sectionBoundary($name).'/m', $rest, $next, PREG_OFFSET_CAPTURE)) {
             $rest = substr($rest, 0, $next[0][1]);
         }
 
         return trim($rest);
+    }
+
+    /**
+     * A section ends at the next known top-level heading other than itself.
+     * A repeated heading of the same name is therefore part of the section,
+     * so one replacement can collapse a duplicated section.
+     */
+    public static function sectionBoundary(string $name): string
+    {
+        $others = array_values(array_filter(
+            self::SECTIONS,
+            static fn (string $section): bool => $section !== $name,
+        ));
+
+        if ($others === []) {
+            return '^##[ \t]+';
+        }
+
+        return '^##[ \t]+(?:'.implode('|', array_map(
+            static fn (string $section): string => preg_quote($section, '/'),
+            $others,
+        )).')[ \t]*$';
     }
 
     /**

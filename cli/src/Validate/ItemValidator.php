@@ -74,6 +74,7 @@ final class ItemValidator
         $this->validateApprovals($items, $result);
         $this->validatePlans($items, $result);
         $this->validateDesigns($items, $result);
+        $this->validateSections($items, $result);
         $this->validateArtifacts($items, $result);
         $this->validateOwnership($items, $result);
 
@@ -297,6 +298,43 @@ final class ItemValidator
                 $item->phase->value,
                 $item->id,
             ));
+        }
+    }
+
+    /**
+     * @param array<string, Item> $items
+     */
+    private function validateSections(array $items, ValidationResult $result): void
+    {
+        foreach ($items as $item) {
+            preg_match_all('/^##[ \t]+(.+?)[ \t]*$/m', $item->body, $matches);
+            $headings = array_map(
+                static fn (string $heading): string => trim($heading),
+                $matches[1] ?? [],
+            );
+            $counts = array_count_values($headings);
+
+            foreach (Item::SECTIONS as $known) {
+                $count = $counts[$known] ?? 0;
+                if ($count > 1) {
+                    $result->warning(sprintf(
+                        '%s: ## %s appears %d times; expected one section. Re-run the command with the merged content.',
+                        $item->id,
+                        $known,
+                        $count,
+                    ));
+                }
+            }
+
+            foreach (array_keys($counts) as $heading) {
+                if (!in_array($heading, Item::SECTIONS, true)) {
+                    $result->warning(sprintf(
+                        '%s: unexpected top-level heading "## %s"; use ### for subsections.',
+                        $item->id,
+                        $heading,
+                    ));
+                }
+            }
         }
     }
 

@@ -147,7 +147,7 @@ final class ItemStore
 
     public static function replaceSection(string $body, string $heading, string $content): string
     {
-        $pattern = '/(^##[ \t]+'.preg_quote($heading, '/').'[ \t]*$\n)(.*?)(?=^##[ \t]+|\z)/ms';
+        $pattern = '/(^##[ \t]+'.preg_quote($heading, '/').'[ \t]*$\n)(.*?)(?='.Item::sectionBoundary($heading).'|\z)/ms';
 
         if (preg_match($pattern, $body) === 1) {
             return (string) preg_replace_callback(
