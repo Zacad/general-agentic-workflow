@@ -51,6 +51,7 @@ final class BoardRenderer
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="5">
 <title>{$this->escape($projectName)} — workflow board</title>
 <style>
 :root { color-scheme: light dark; --bg:#f6f7f9; --panel:#fff; --ink:#1c2330; --muted:#667085; --line:#d9dee7; --accent:#2f6feb; }
@@ -65,7 +66,6 @@ header p { margin:0; color:var(--muted); }
 .column h2 { margin:0 0 10px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
 .count { float:right; font-weight:600; }
 .card { border:1px solid var(--line); border-radius:8px; padding:10px; margin-bottom:8px; background:var(--bg); }
-.card a { color:var(--ink); text-decoration:none; display:block; }
 .card .id { color:var(--accent); font-weight:700; margin-right:6px; }
 .card .meta { margin-top:4px; color:var(--muted); font-size:12px; }
 .empty { color:var(--muted); font-size:12px; }
@@ -74,7 +74,7 @@ header p { margin:0; color:var(--muted); }
 <body>
 <header>
 <h1>{$this->escape($projectName)}</h1>
-<p>Generated {$this->escape(gmdate('Y-m-d H:i \U\T\C'))} · read-only</p>
+<p>Generated {$this->escape(gmdate('Y-m-d H:i \U\T\C'))} · read-only · refreshes every 5 s</p>
 </header>
 <main class="board">
 {$columns}
@@ -94,8 +94,7 @@ HTML;
         );
 
         return sprintf(
-            '<article class="card"><a href="items/%s/item.md"><span class="id">%s</span><span class="title">%s</span></a><div class="meta">%s</div></article>',
-            $this->escape($item->id),
+            '<article class="card"><span class="id">%s</span><span class="title">%s</span><div class="meta">%s</div></article>',
             $this->escape($item->id),
             $this->escape($item->title),
             $this->escape($meta),

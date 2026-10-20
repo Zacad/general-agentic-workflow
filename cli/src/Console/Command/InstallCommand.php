@@ -8,6 +8,8 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Workflow\Board\BoardWriter;
+use Workflow\Store\ItemStore;
 use Workflow\Store\ProjectInitializer;
 
 final class InstallCommand extends BaseCommand
@@ -101,6 +103,13 @@ final class InstallCommand extends BaseCommand
         $output->writeln(sprintf('  copied %d files, skipped %d existing files', count($copied), count($skipped)));
         foreach ($created as $path) {
             $output->writeln('  created '.$path);
+        }
+
+        try {
+            $board = (new BoardWriter())->write(new ItemStore($targetPath));
+            $output->writeln('  created '.$board);
+        } catch (\Throwable $exception) {
+            $output->writeln('<comment>warning: board not created: '.$exception->getMessage().'</comment>');
         }
 
         $workflowBin = $targetPath.'/cli/bin/workflow';

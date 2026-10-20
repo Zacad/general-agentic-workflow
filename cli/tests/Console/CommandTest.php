@@ -209,7 +209,59 @@ final class CommandTest extends WorkflowTestCase
 
         $board = $this->root.'/.workflow/board.html';
         self::assertFileExists($board);
-        self::assertStringContainsString('Board item', (string) file_get_contents($board));
+        $html = (string) file_get_contents($board);
+        self::assertStringContainsString('Board item', $html);
+        self::assertStringNotContainsString('href=', $html);
+        self::assertStringNotContainsString('item.md', $html);
+        self::assertStringContainsString('<meta http-equiv="refresh" content="5">', $html);
+    }
+
+    public function testBoardRefreshesAfterStateChanges(): void
+    {
+        $this->runCli(['command' => 'init', '--name' => 'test']);
+
+        $board = $this->root.'/.workflow/board.html';
+        self::assertFileExists($board);
+
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'First title', '--kind' => 'epic']);
+        $id = $this->idFrom($output);
+
+        $html = (string) file_get_contents($board);
+        self::assertStringContainsString('First title', $html);
+        self::assertStringContainsString('Draft <span class="count">1</span>', $html);
+
+        $this->runCli(['command' => 'approve', 'id' => $id]);
+        $html = (string) file_get_contents($board);
+        self::assertStringContainsString('Todo <span class="count">1</span>', $html);
+
+        $this->runCli([
+            'command' => 'set',
+            'id' => $id,
+            'assignments' => ['title=Renamed title', 'priority=7'],
+        ]);
+        $html = (string) file_get_contents($board);
+        self::assertStringContainsString('Renamed title', $html);
+        self::assertStringContainsString('p7', $html);
+
+        $this->runCli(['command' => 'close', 'id' => $id, '--status' => 'done']);
+        $html = (string) file_get_contents($board);
+        self::assertStringContainsString('Done <span class="count">1</span>', $html);
+        self::assertStringContainsString('Renamed title', $html);
+    }
+
+    public function testNewJsonStaysCleanWhenBoardRefreshes(): void
+    {
+        $this->runCli(['command' => 'init', '--name' => 'test']);
+
+        [$exit, $output] = $this->runCli([
+            'command' => 'new',
+            'title' => 'JSON item',
+            '--json' => true,
+        ]);
+
+        self::assertSame(0, $exit);
+        $data = json_decode($output, true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame('T-001', $data['id']);
     }
 
     public function testStatusCapsLongSections(): void

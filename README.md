@@ -93,6 +93,11 @@ scope: {in: [...], out: [...]}
 acceptance: [...]
 ```
 
+`board.html` is generated and read-only. Commands that change a card
+(`init`, `new`, `set`, `approve`, `close`) rewrite it automatically, so
+reopening the board shows the current state. `workflow board` forces a
+rewrite after a manual edit.
+
 ## The loop
 
 1. **Frame** — outcome, scope, acceptance, dependencies, owned paths.

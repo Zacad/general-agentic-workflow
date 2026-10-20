@@ -106,6 +106,7 @@ final class NewCommand extends BaseCommand
         }
 
         $store->create($item);
+        $this->refreshBoard($input, $output);
 
         if ($input->getOption('json')) {
             $this->writeJson($output, ['id' => $item->id, 'status' => $item->status->value, 'path' => $store->itemPath($item->id)]);

@@ -6,7 +6,9 @@ namespace Workflow\Console\Command;
 
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\OutputInterface;
+use Workflow\Board\BoardWriter;
 use Workflow\Domain\Item;
 use Workflow\Read\ProjectView;
 use Workflow\Store\ItemStore;
@@ -32,6 +34,20 @@ abstract class BaseCommand extends Command
     protected function writeJson(OutputInterface $output, mixed $data): void
     {
         $output->writeln(json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
+    }
+
+    /**
+     * Rewrite the generated board after a state-changing command. The board is
+     * derived state: a failure must not fail the command that changed the item.
+     */
+    protected function refreshBoard(InputInterface $input, OutputInterface $output): void
+    {
+        try {
+            (new BoardWriter())->write($this->store($input));
+        } catch (\Throwable $exception) {
+            $errorOutput = $output instanceof ConsoleOutput ? $output->getErrorOutput() : $output;
+            $errorOutput->writeln('<comment>warning: board not refreshed: '.$exception->getMessage().'</comment>');
+        }
     }
 
     /**

@@ -42,6 +42,7 @@ final class ApproveCommand extends BaseCommand
 
             return ['hash' => $hash, 'status' => $item->status->value];
         });
+        $this->refreshBoard($input, $output);
 
         if ($input->getOption('json')) {
             $this->writeJson($output, ['id' => $id, 'by' => $by, 'scope_hash' => $result['hash'], 'status' => $result['status']]);

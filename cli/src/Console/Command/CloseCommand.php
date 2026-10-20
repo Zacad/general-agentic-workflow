@@ -52,6 +52,7 @@ final class CloseCommand extends BaseCommand
 
             return ['verified' => $item->verifiedAt !== null];
         });
+        $this->refreshBoard($input, $output);
 
         if ($input->getOption('json')) {
             $this->writeJson($output, ['id' => $id, 'status' => $status->value, 'verified' => $result['verified']]);

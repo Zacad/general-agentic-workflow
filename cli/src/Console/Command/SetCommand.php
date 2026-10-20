@@ -72,6 +72,7 @@ final class SetCommand extends BaseCommand
         }
 
         $output->writeln(sprintf('Updated %s: %s', $id, implode(', ', $changed)));
+        $this->refreshBoard($input, $output);
 
         if ($stale) {
             $output->writeln(sprintf('<comment>warning: scope changed; approval is stale. Run "workflow approve %s".</comment>', $id));

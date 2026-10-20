@@ -28,6 +28,7 @@ final class InitCommand extends BaseCommand
         $root = Project::find($input->getOption('project'));
         $initializer = new ProjectInitializer(dirname(__DIR__, 3).'/templates');
         $created = $initializer->initialize($root, $input->getOption('name'));
+        $this->refreshBoard($input, $output);
 
         if ($created === []) {
             $output->writeln(sprintf('Already initialized: %s', $root));
