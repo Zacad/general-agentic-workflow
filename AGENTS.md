@@ -6,8 +6,9 @@ absent, incomplete or conflicting workflow instructions require a reviewed
 manual merge, not assumed authority to overwrite them.
 
 Markdown in `.workflow/` is durable state; use `cli/bin/workflow` (or `workflow`
-on `PATH`) to manage item records. Command details live in
-`.agents/skills/workflow-cli/SKILL.md`; methods live in the other skills.
+on `PATH`) to manage item records. Load `.agents/skills/workflow-cli/SKILL.md`
+for the command contract and read bounds; load the method skill that matches
+the work rather than every skill.
 
 ## Coordination and records
 

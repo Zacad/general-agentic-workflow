@@ -52,12 +52,44 @@ The installer already initializes missing records; `init` is safe to repeat.
 Manual copies must exclude source `.workflow/`, `cli/vendor/`, `cli/tools/`
 and caches; initialize with the target's templates instead.
 
-For harness registration, review [opencode.example.json](opencode.example.json)
-and merge the applicable entries into the target's configuration; do not
-overwrite existing settings. Its role-file references are project-relative, so
-keep the configuration at the project root. Restart the harness after changing
-prompts/configuration and check that its four workflow roles are available.
-CLI/static file checks do not prove that an LLM actually loaded the instructions.
+Use `./cli/bin/workflow` from the target or the absolute
+`/path/to/target/cli/bin/workflow`; optionally add `/path/to/target/cli/bin` to
+`PATH`, then run `workflow --project /path/to/target validate`. Mutating commands
+refresh the derived `.workflow/board.html`; run `workflow board` to force a
+rewrite after a manual edit.
+
+## Register OpenCode (manual)
+
+Scaffolding does not register agents. **OpenCode/harness registration is
+REQUIRED, MANUAL and UNVERIFIED**; review the result against host settings.
+
+- **Clean project:** review [opencode.example.json](opencode.example.json), then
+  copy it to the target root as `opencode.json` (or the equivalent). Keep it at
+  the root because its `{file:...}` role paths resolve from the config file. It
+  registers `workflow-orchestrator` as `primary` and `default_agent`, plus
+  `workflow-explorer`, `workflow-worker` and `workflow-verifier` as `subagent`s.
+  It omits `model`, so agents inherit the session model; add
+  `"model": "provider/model"` only to pin one. `default_agent` chooses the
+  starting primary; change it only when sessions should start elsewhere.
+- **Existing configuration:** preserve the host file. Manually merge only the
+  applicable `agents` entries, permissions, `model`/`default_agent` choices and
+  unrelated settings. Merge additively and review conflicts; do not overwrite
+  host authority. Keep the host `default_agent` unless the user asks otherwise.
+- **Skills:** `.agents/skills/` is discovered as a project-compatibility source;
+  no `skills` entry is needed. Add one only for extra local or HTTP sources.
+- **Reload and verify:** restart OpenCode or run
+  `opencode api post /api/location/reload`. Then query the target-scoped V2
+  `/api/agent` catalog:
+
+  ```sh
+  opencode api agent.list --param "location[directory]=/path/to/target"
+  ```
+
+  Confirm all four `workflow-*` IDs and modes, and that the reviewed
+  `default_agent` is a visible primary agent. This proves registration only:
+  `workflow validate` checks scaffold records and is not registration proof,
+  and the catalog check is not a paid LLM proof. Restart after later prompt or
+  config changes.
 
 ## Isolated smoke check
 

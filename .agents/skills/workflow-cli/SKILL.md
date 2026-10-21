@@ -41,7 +41,7 @@ worker: plain `brief ID` is unsafe for independent verification.
 | Command | Contract |
 | --- | --- |
 | `init [--name NAME]` | Add missing project templates/layout. |
-| `new TITLE [--kind task] [--parent E-001]` | Draft item; repeat `--owns PATH` / `--depends ID`; parentless tasks use `--standalone-reason TEXT`. |
+| `new TITLE [--kind task] [--parent E-001]` | Draft item in phase `plan` by default; repeat `--owns PATH` / `--depends ID`; parentless tasks use `--standalone-reason TEXT`. |
 | `plan ID --file F` or `--text S` | Replace Plan; optional `--phase PHASE` and/or `--start`. |
 | `design ID --file F` or `--text S` | Replace Design; same optional state flags. |
 | `set ID key=value ...` | status, phase, parent, title, outcome, priority, depends_on, owns, acceptance, scope_in, scope_out, standalone_reason. |
@@ -52,8 +52,9 @@ worker: plain `brief ID` is unsafe for independent verification.
 | `board` | Regenerate derived `.workflow/board.html`, not a read-only command. |
 | `install DIR [--name NAME] [--force]` | Scaffold; preservation/manual-merge contract in `docs/install.md`. |
 
-Plan/design require exactly one content source. Without flags they change only
-content, never rewind state. `--phase` explicitly selects any valid phase but
+A new item starts in `plan`; approving a draft moves it to `todo`. Plan/design
+require exactly one content source. Without flags they change only content,
+never rewind state. `--phase` explicitly selects any valid phase but
 does not imply status; only `--start` requests in-progress. Content and requested
 state changes validate before one atomic mutation, then refresh the board.
 Use `set` for other state corrections. Example:

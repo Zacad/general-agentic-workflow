@@ -106,6 +106,8 @@ exit($application->run(new Symfony\Component\Console\Input\ArrayInput($input)));
         self::assertSame('kit readme', file_get_contents($target.'/README.md'));
         self::assertSame('kit license', file_get_contents($target.'/LICENSE'));
         self::assertSame('kit skill', file_get_contents($target.'/.agents/skills/example/SKILL.md'));
+        self::assertStringContainsString('Scaffold copied into', $output);
+        self::assertStringNotContainsString('opencode debug agents', $output);
         self::assertStringContainsString('# Fixture PRD', file_get_contents($target.'/.workflow/PRD.md'));
         self::assertFileExists($target.'/.workflow/board.html');
         self::assertFileDoesNotExist($target.'/.workflow/items/E-999');

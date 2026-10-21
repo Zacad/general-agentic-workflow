@@ -87,6 +87,10 @@ Commands find the nearest `.workflow/`; `--project /absolute/path` selects a
 different root. This kit's own records already exist: do not run the example
 against them. The CLI does not authenticate role independence or human consent.
 
+Scaffolding does not register agents. OpenCode registration is a required,
+manual and unverified follow-up; see the [installation guide](docs/install.md)
+for clean-project copy, existing-config merge, reload and catalog checks.
+
 ## Records and limits
 
 `.workflow/PRD.md` holds requirements, `Architecture.md` holds design, and each

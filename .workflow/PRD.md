@@ -23,9 +23,13 @@ without repeated approval of unchanged scope.
   preserved completed history with explicit exceptions/follow-ups.
 - Safe distribution: additive scaffold, reviewed manual merges, reproducible runtime.
 
-No database, daemon, scheduler, multi-user synchronization, rigid state machine,
-automatic migration/reopening/successor creation, managed updater or host-document
-merger. No content-fingerprint/snapshot infrastructure or per-attempt project copies.
+No database, daemon, scheduler or long-running server; no authentication,
+multi-user synchronization or remote collaboration; no rigid state machine or
+enforcement of every edge case. No full-text search, comments, attachments, time
+tracking, auto-commit or web UI beyond the generated read-only board. No migration
+of records from the earlier system, automatic reopening/successor creation,
+managed updater or host-document merger. No content-fingerprint/snapshot
+infrastructure or per-attempt project copies.
 
 ## Functional requirements
 

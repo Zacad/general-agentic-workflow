@@ -8,6 +8,10 @@ Root `AGENTS.md` owns operating rules; roles define responsibilities, skills
 provide methods, and README/install docs introduce executable use. There is no
 second canonical protocol or default mandatory artifact.
 
+The CLI is a lightweight Symfony Console application assembled from `console`,
+`yaml`, `filesystem`, `finder` and `lock` components: no dependency-injection
+container, no bundles and no HTTP kernel.
+
 Key source locations (relative to the repository root):
 
 | Component | Source |

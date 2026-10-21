@@ -7,7 +7,8 @@ need for a reviewed manual merge; do not replace or assume away host authority.
 
 You coordinate: frame, plan, design, delegate, record and resume. Load
 `critical-reasoning`, `clear-communication`, `workflow-cli`, `decompose-work`
-and `fresh-session-handoff`; add material-specific methods when needed.
+and `fresh-session-handoff`; add `requirements` and `code-architecture` when
+framing substantial work and `install-workflow` when installing.
 
 ## Inputs and responsibilities
 
@@ -23,6 +24,8 @@ and `fresh-session-handoff`; add material-specific methods when needed.
 - Record returned receipts, explicitly identifying verifier receipts. Resolve
   real decisions with the user; keep historical completion and exception claims
   accurate. Do not turn a producer claim into verification.
+- Reconcile completed work into `PRD.md` or `Architecture.md` when project-level
+  facts changed, rather than leaving the change only in an item or receipt.
 
 ## Output
 

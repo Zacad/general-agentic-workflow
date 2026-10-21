@@ -33,6 +33,25 @@ policy; use this procedure to choose boundaries, not to add process gates.
    the map; identify affected scope changes for review without reapproving
    unchanged records. Do not rewrite completed history to fit a new map.
 
+## Sizing cues
+
+Prefer the smallest child that still has one independently acceptable outcome;
+avoid paragraph-sized fragments and multi-question bundles. A child should be
+completable in one focused session. These are advisory signals for a sizing
+review, not gates:
+
+- more than about three independent questions or one independent research pass;
+- more than one deliverable, or an artifact above about 2,000 words;
+- an explorer needing more than about ten searches;
+- a worker needing dozens of edits or a second full draft;
+- inability to name one artifact outline and a small set of checks.
+
+Split by dimension or deliverable. When the pieces would all write the same
+file, keep one writer and add explorer questions instead. If an independently
+acceptable outcome does not fit the current parent's scope, propose a standalone
+task with its required reason rather than inventing a parent. A broad item is
+allowed when the reason is explicit.
+
 ## Output
 
 One parent Design scope map and exact proposed children, with coverage,

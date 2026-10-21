@@ -101,7 +101,7 @@ final class InstallCommand extends BaseCommand
         $initializer = new ProjectInitializer($kitRoot.'/cli/templates');
         $created = $initializer->initialize($targetPath, $input->getOption('name'));
 
-        $output->writeln(sprintf('Installed into %s', $targetPath));
+        $output->writeln(sprintf('Scaffold copied into %s', $targetPath));
         $output->writeln(sprintf('  copied %d files, skipped %d existing files or unsafe paths', count($copied), count($skipped)));
         foreach ($created as $path) {
             $output->writeln('  created '.$path);
@@ -120,12 +120,23 @@ final class InstallCommand extends BaseCommand
         }
 
         $output->writeln('');
-        $output->writeln('Next:');
-        $output->writeln('  Scaffold only: review skipped paths; no automatic merges or deletions.');
+        $output->writeln('Next steps (manual):');
+        $output->writeln('  This is a scaffold copy only; no automatic merges or deletions.');
+        $output->writeln('  OpenCode/harness registration is REQUIRED, MANUAL and UNVERIFIED.');
+        $output->writeln(sprintf('  Review %s/docs/install.md first.', $targetPath));
+        $output->writeln(sprintf('  Clean project: copy %s/docs/opencode.example.json to %s/opencode.json.', $targetPath, $targetPath));
+        $output->writeln('  Existing config: manually merge only the agents, default and model entries; never overwrite existing settings.');
+        $output->writeln('  Skills under .agents/skills/ are auto-discovered; no skills entry is needed.');
+        $output->writeln('  Expected: workflow-orchestrator primary/default; workflow-explorer, workflow-worker and workflow-verifier subagents.');
+        $output->writeln('  Reload OpenCode, then check the target-scoped V2 /api/agent catalog:');
+        $output->writeln(sprintf('    opencode api agent.list --param "location[directory]=%s"', $targetPath));
+        $output->writeln('  Confirm all four workflow-* IDs, their modes and the reviewed default_agent.');
+        $output->writeln('  workflow validate proves scaffold records only; the catalog is not a paid LLM proof.');
         $output->writeln('  Manually merge the kit AGENTS.md rules into preserved host instructions.');
-        $output->writeln('  Existing root documents, host configuration and workflow records are never merged or replaced.');
-        $output->writeln('  cd '.$targetPath.'/cli && composer install --no-dev');
-        $output->writeln('  '.$targetPath.'/cli/bin/workflow --project '.$targetPath.' validate');
+        $output->writeln(sprintf('  cd %s/cli && composer install --no-dev', $targetPath));
+        $output->writeln(sprintf('  Use ./cli/bin/workflow from the target or %s/cli/bin/workflow (optionally add %s/cli/bin to PATH):', $targetPath, $targetPath));
+        $output->writeln(sprintf('    %s/cli/bin/workflow --project %s validate', $targetPath, $targetPath));
+        $output->writeln(sprintf('  Refresh the derived board after manual edits: %s/cli/bin/workflow --project %s board', $targetPath, $targetPath));
 
         return self::SUCCESS;
     }
