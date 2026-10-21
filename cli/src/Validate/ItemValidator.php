@@ -7,7 +7,7 @@ namespace Workflow\Validate;
 use Workflow\Domain\FrontMatter;
 use Workflow\Domain\InvalidItemException;
 use Workflow\Domain\Item;
-use Workflow\Domain\Kind;
+use Workflow\Domain\ItemLifecycle;
 use Workflow\Store\ItemStore;
 
 final class ItemValidator
@@ -34,6 +34,7 @@ final class ItemValidator
         }
 
         $items = [];
+        $records = [];
         foreach ($this->store->ids() as $directoryId) {
             $itemDirectory = $this->store->itemsDir().'/'.$directoryId;
             $this->validateDirectory($itemDirectory, $directoryId, $result);
@@ -62,15 +63,13 @@ final class ItemValidator
                 $result->error(sprintf('%s: front matter id is %s.', $directoryId, $item->id));
             }
 
-            if (preg_match('/^'.preg_quote($item->kind->prefix(), '/').'-\d+$/', $item->id) !== 1) {
-                $result->error(sprintf('%s: id does not match kind %s.', $item->id, $item->kind->value));
-            }
-
             $items[$item->id] = $item;
+            $records[] = $item;
         }
 
-        $this->validateParents($items, $result);
-        $this->validateDependencies($items, $result);
+        $structure = (new StructureValidator())->validate($records);
+        $result->errors = array_merge($result->errors, $structure->errors);
+        $result->warnings = array_merge($result->warnings, $structure->warnings);
         $this->validateApprovals($items, $result);
         $this->validatePlans($items, $result);
         $this->validateDesigns($items, $result);
@@ -105,112 +104,6 @@ final class ItemValidator
     /**
      * @param array<string, Item> $items
      */
-    private function validateParents(array $items, ValidationResult $result): void
-    {
-        foreach ($items as $item) {
-            if ($item->kind === Kind::Epic) {
-                if ($item->parent !== null) {
-                    $result->error(sprintf('%s: an epic cannot have a parent.', $item->id));
-                }
-                continue;
-            }
-
-            if ($item->parent === null) {
-                if ($item->kind === Kind::Subtask) {
-                    $result->error(sprintf('%s: a subtask requires a task parent.', $item->id));
-                } else {
-                    $reason = $item->extra['standalone_reason'] ?? '';
-                    if (!is_string($reason) || trim($reason) === '') {
-                        $result->warning(sprintf('%s: standalone task without standalone_reason.', $item->id));
-                    }
-                }
-                continue;
-            }
-
-            if ($item->parent === $item->id) {
-                $result->error(sprintf('%s: item cannot be its own parent.', $item->id));
-                continue;
-            }
-
-            $parent = $items[$item->parent] ?? null;
-            if ($parent === null) {
-                $result->error(sprintf('%s: parent %s does not exist.', $item->id, $item->parent));
-                continue;
-            }
-
-            $expected = $item->kind === Kind::Subtask ? Kind::Task : Kind::Epic;
-            if ($parent->kind !== $expected) {
-                $result->error(sprintf(
-                    '%s: %s parent must be a %s, got %s.',
-                    $item->id,
-                    $item->kind->value,
-                    $expected->value,
-                    $parent->kind->value,
-                ));
-            }
-        }
-    }
-
-    /**
-     * @param array<string, Item> $items
-     */
-    private function validateDependencies(array $items, ValidationResult $result): void
-    {
-        $graph = [];
-        foreach ($items as $id => $item) {
-            $graph[$id] = [];
-            foreach ($item->dependsOn as $dependency) {
-                if ($dependency === $id) {
-                    $result->error(sprintf('%s: item depends on itself.', $id));
-                    continue;
-                }
-                if (!isset($items[$dependency])) {
-                    $result->error(sprintf('%s: dependency %s does not exist.', $id, $dependency));
-                    continue;
-                }
-                $graph[$id][] = $dependency;
-            }
-        }
-
-        $state = [];
-        $stack = [];
-        $reported = [];
-
-        $visit = function (string $id) use (&$visit, &$state, &$stack, &$reported, $graph, $result): void {
-            if (($state[$id] ?? 0) === 2) {
-                return;
-            }
-
-            if (($state[$id] ?? 0) === 1) {
-                $position = array_search($id, $stack, true);
-                $cycle = array_slice($stack, $position === false ? 0 : $position);
-                $cycle[] = $id;
-                $key = implode('>', $cycle);
-                if (!isset($reported[$key])) {
-                    $reported[$key] = true;
-                    $result->error('Dependency cycle: '.implode(' -> ', $cycle));
-                }
-
-                return;
-            }
-
-            $state[$id] = 1;
-            $stack[] = $id;
-            foreach ($graph[$id] as $dependency) {
-                $visit($dependency);
-            }
-            array_pop($stack);
-            $state[$id] = 2;
-        };
-
-        foreach (array_keys($graph) as $id) {
-            $visit($id);
-        }
-    }
-
-    /**
-     * @param array<string, Item> $items
-     */
     private function validateApprovals(array $items, ValidationResult $result): void
     {
         foreach ($items as $item) {
@@ -225,7 +118,12 @@ final class ItemValidator
             }
 
             if ($item->status->value === 'done' && $item->verifiedAt === null) {
-                $result->warning(sprintf('%s: done without a verifier receipt.', $item->id));
+                $result->warning(sprintf('%s: done without a verifier receipt for the current target.', $item->id));
+            } elseif ($item->verifiedAt !== null && !ItemLifecycle::hasCurrentVerification($item)) {
+                $result->warning(sprintf('%s: verification is stale or lacks a matching successful verifier receipt.', $item->id));
+            } elseif ($item->status->isOpen() && $item->verifiedAt === null
+                && ($item->lastResult['role'] ?? null) === 'verifier' && ($item->lastResult['status'] ?? null) === 'done') {
+                $result->warning(sprintf('%s: no current verification despite an earlier verifier receipt; verify the current target again.', $item->id));
             }
         }
 
@@ -388,7 +286,7 @@ final class ItemValidator
             for ($j = $i + 1; $j < $count; $j++) {
                 $left = $open[$ids[$i]];
                 $right = $open[$ids[$j]];
-                if ($this->hasDependencyPath($left, $right, $items) || $this->hasDependencyPath($right, $left, $items)) {
+                if (self::dependencyOrdered($left, $right, $items)) {
                     continue;
                 }
                 $shared = $this->sharedOwnedPaths($left, $right);
@@ -405,10 +303,20 @@ final class ItemValidator
     }
 
     /**
+     * Dependency-ordered pairs are not parallel ownership conflicts.
+     *
+     * @param array<string, Item> $items
+     */
+    public static function dependencyOrdered(Item $left, Item $right, array $items): bool
+    {
+        return self::hasDependencyPath($left, $right, $items) || self::hasDependencyPath($right, $left, $items);
+    }
+
+    /**
      * @param array<string, Item> $items
      * @param list<string>       $visited
      */
-    private function hasDependencyPath(Item $from, Item $target, array $items, array $visited = []): bool
+    private static function hasDependencyPath(Item $from, Item $target, array $items, array $visited = []): bool
     {
         if (in_array($from->id, $visited, true)) {
             return false;
@@ -420,7 +328,7 @@ final class ItemValidator
                 return true;
             }
             $dependency = $items[$dependencyId] ?? null;
-            if ($dependency !== null && $this->hasDependencyPath($dependency, $target, $items, $visited)) {
+            if ($dependency !== null && self::hasDependencyPath($dependency, $target, $items, $visited)) {
                 return true;
             }
         }
@@ -448,15 +356,46 @@ final class ItemValidator
 
     public static function pathsOverlap(string $left, string $right): bool
     {
-        $left = trim(str_replace('\\', '/', $left), '/');
-        $right = trim(str_replace('\\', '/', $right), '/');
+        $left = self::ownedPathComponents($left);
+        $right = self::ownedPathComponents($right);
 
-        if ($left === '' || $right === '') {
+        if ($left === null || $right === null) {
             return false;
         }
 
-        return $left === $right
-            || str_starts_with($left, $right.'/')
-            || str_starts_with($right, $left.'/');
+        // A nonempty root spelling owns in-project descendants, not paths
+        // escaping above it. Empty input, unlike "." or "/", owns nothing.
+        if ($left === []) {
+            return ($right[0] ?? null) !== '..';
+        }
+        if ($right === []) {
+            return ($left[0] ?? null) !== '..';
+        }
+
+        $length = min(count($left), count($right));
+
+        return array_slice($left, 0, $length) === array_slice($right, 0, $length);
+    }
+
+    /** @return list<string>|null Empty list is root; null is absent ownership. */
+    private static function ownedPathComponents(string $path): ?array
+    {
+        if ($path === '') {
+            return null;
+        }
+
+        $components = [];
+        foreach (explode('/', str_replace('\\', '/', $path)) as $component) {
+            if ($component === '' || $component === '.') {
+                continue;
+            }
+            if ($component === '..' && $components !== [] && end($components) !== '..') {
+                array_pop($components);
+            } else {
+                $components[] = $component;
+            }
+        }
+
+        return $components;
     }
 }

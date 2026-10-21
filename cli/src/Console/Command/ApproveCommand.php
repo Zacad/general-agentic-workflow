@@ -12,7 +12,7 @@ use Workflow\Domain\Approval;
 use Workflow\Domain\Item;
 use Workflow\Domain\Status;
 use Workflow\Support\Clock;
-use Workflow\Support\Text;
+use Workflow\Support\ScopeOutput;
 
 final class ApproveCommand extends BaseCommand
 {
@@ -41,36 +41,30 @@ final class ApproveCommand extends BaseCommand
                 $item->status = Status::Todo;
             }
 
-            return ['hash' => $hash, 'status' => $item->status->value];
+            return [
+                'id' => $item->id,
+                'by' => $item->approval->by,
+                'scope_hash' => $hash,
+                'status' => $item->status->value,
+                ...ScopeOutput::scope($item),
+                'owns' => $item->owns,
+            ];
         });
         $this->refreshBoard($input, $output);
 
         if ($input->getOption('json')) {
-            $this->writeJson($output, ['id' => $id, 'by' => $by, 'scope_hash' => $result['hash'], 'status' => $result['status']]);
+            $this->writeJson($output, $result);
 
             return self::SUCCESS;
         }
 
-        $item = $this->store($input)->load($id);
-
-        $output->writeln(sprintf('Approved %s by %s', $id, $by));
-        $output->writeln('kind: '.$item->kind->value);
-        $output->writeln('parent: '.($item->parent ?? 'none'));
-        $output->writeln('title: '.$item->title);
-        $output->writeln('outcome: '.($item->outcome !== '' ? $item->outcome : '(not set)'));
-        $output->writeln('scope in: '.Text::inlineList($item->scopeIn));
-        $output->writeln('scope out: '.Text::inlineList($item->scopeOut));
-        $output->writeln('acceptance:');
-        if ($item->acceptance === []) {
-            $output->writeln('  (not set)');
-        } else {
-            foreach ($item->acceptance as $index => $criterion) {
-                $output->writeln(sprintf('  %d. %s', $index + 1, $criterion));
-            }
-        }
-        $output->writeln('depends: '.Text::inlineList($item->dependsOn));
-        $output->writeln('owns: '.Text::inlineList($item->owns));
-        $output->writeln('hash: '.$result['hash']);
+        $output->writeln(sprintf(
+            'Approved %s by %s',
+            ScopeOutput::literal($result['id']),
+            ScopeOutput::literal($result['by']),
+        ), OutputInterface::OUTPUT_RAW);
+        ScopeOutput::write($output, $result, $result['owns']);
+        $output->writeln('hash: '.$result['scope_hash']);
         $output->writeln('status: '.$result['status']);
 
         return self::SUCCESS;

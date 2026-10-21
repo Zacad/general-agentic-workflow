@@ -7,7 +7,12 @@ use Workflow\Console\Application;
 
 $autoload = dirname(__DIR__).'/vendor/autoload.php';
 if (!is_file($autoload)) {
-    fwrite(STDERR, "Workflow dependencies are not installed.\nRun: composer install --working-dir=".dirname(__DIR__)."\n");
+    $directory = escapeshellarg(dirname(__DIR__));
+    fwrite(STDERR, "Workflow dependencies are not installed.\n"
+        ."Runtime prerequisites: PHP >=8.4.1, Composer 2 and iconv (mbstring is polyfilled).\n"
+        ."Runtime setup: composer install --no-dev --working-dir=".$directory."\n"
+        ."Development also requires native mbstring, DOM, filter, JSON, libxml, tokenizer, XMLWriter and Phar.\n"
+        ."Development setup: composer install --working-dir=".$directory."\n");
     exit(1);
 }
 

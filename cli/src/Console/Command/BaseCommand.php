@@ -33,7 +33,10 @@ abstract class BaseCommand extends Command
 
     protected function writeJson(OutputInterface $output, mixed $data): void
     {
-        $output->writeln(json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
+        $output->writeln(
+            json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+            OutputInterface::OUTPUT_RAW,
+        );
     }
 
     /**

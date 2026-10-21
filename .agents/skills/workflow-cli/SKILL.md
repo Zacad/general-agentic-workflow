@@ -5,120 +5,75 @@ description: Use the project-local workflow CLI for compact reads, approvals, pl
 
 # Workflow CLI
 
-**Inputs:** the project root, the binary (`cli/bin/workflow` or `workflow` on
-`PATH`), and the read or write you intend.
+**Inputs:** project root, `cli/bin/workflow` (or `workflow` on `PATH`), intended
+read/write. Load root `AGENTS.md` for authority, role boundaries and lifecycle
+policy; this skill is the command contract, not a second operating loop.
 
-## Start a session
+Commands find the nearest `.workflow/`; use `--project /absolute/path` to select
+another root. Start a session with `status`.
 
-Run `workflow status`. The CLI finds the nearest `.workflow/`; pass
-`--project /abs/path` when running from elsewhere. If the status is unclear,
-run `workflow ready`.
+## Read projections
 
-## Reads
-
-| Command | Use |
+| Command | Contract |
 | --- | --- |
-| `status [--all]` | working set: active, ready, waiting, decisions, counts |
-| `ready [--all]` | startable items; flags owned-path overlaps |
-| `brief ID --for role` | the delegation packet: `explorer`, `worker` or `verifier` |
-| `review E-001` | exact epic + child scope packet for approval |
-| `deps [ID] [--graph]` | dependencies, dependents, Mermaid |
-| `validate` | parents, cycles, approvals, artifacts, layout |
-| `show ID [--section Name]` | human/debug only |
-| `board` | write `.workflow/board.html` |
+| `status [--all]` | Working set/counts; default text sections are capped. `--all` removes every section cap and adds done/cancelled groups in text and JSON. |
+| `ready [--all]` | Todo items with current approval and done dependencies; reports ownership overlaps. Default text shows 20. |
+| `brief ID --for ROLE` | Role packet: `orchestrator`, `explorer`, `worker`, `verifier`; always specify the role. |
+| `review E-001` | Exact epic/descendant scope, owns, approval and full Plan/Design for review. |
+| `deps [ID] [--graph]` | Dependency/dependent relationships or Mermaid. |
+| `validate` | Structure, approval, artifacts, layout and advisory process diagnostics. |
+| `show ID [--section Name]` | Raw human/debug record, not a coordinator read view. |
 
-Default output is bounded: `status` caps each section, `ready` shows the first
-20. Add `--all` only when you genuinely need the whole list. Reads accept
-`--json`.
+These commands accept `--json`. JSON preserves literal strings. Review/approve
+text uses unambiguous literal values for lists, empty values, multiline strings
+and Console-style tags; approval values/hash are captured in one locked mutation.
+Default status/ready JSON is already uncapped for its included groups.
 
-**Never read a whole `item.md` in the orchestrator.** Use `brief`. Prefer
-delegating by reference: give the role the ID and tell it to run the
-role-specific brief, so the packet stays in that role's context.
+Briefs include scope, acceptance, Plan/Design, parent Design, decisions and
+upstream artifacts. Explorer adds `.workflow/items/<ID>/outputs/`; worker and
+other non-verifier roles may see a compact last receipt. Verifier text **and**
+JSON exclude receipt, progress and unknown metadata. This is field-based blinding,
+not removal of conclusions someone placed in approved narrative. Default role is
+worker: plain `brief ID` is unsafe for independent verification.
 
-### Role-specific briefs
+## Mutations and derived output
 
-Always pass `--for`; the default is the worker brief.
-
-| Role | Command | Effect |
-| --- | --- | --- |
-| Explorer | `brief ID --for explorer` | adds the plan and the `items/<id>/outputs/` artifact target |
-| Worker | `brief ID --for worker` | includes plan, design, parent design, upstream artifacts and the last result |
-| Verifier | `brief ID --for verifier` | includes acceptance and design; omits the producer claim |
-
-`review E-001` prints the epic plan/design and every descendant's exact
-outcome, scope, acceptance, dependencies, owned paths and plan/design state.
-Use it for the frame review; do not ask for approval of a summary.
-
-A verifier that runs plain `brief ID` sees the worker's last result and loses
-the intended blinding. Use `--for verifier` every time.
-
-## Writes
-
-| Command | Use |
+| Command | Contract |
 | --- | --- |
-| `init` | scaffold `.workflow/` |
-| `new` | create a draft item |
-| `plan ID --file F` / `--text S` | replace the `## Plan` section (pre-exploration approach) |
-| `design ID --file F` / `--text S` | replace the `## Design` section (post-exploration solution) |
-| `decide ID "..."` | append a durable decision |
-| `set ID key=value ...` | status, phase, parent, title, outcome, priority, depends_on, owns, acceptance, scope_in, scope_out |
-| `approve ID [--by name]` | approve the current scope; prints the actual values and hash |
-| `log ID "..."` | append a progress line |
-| `result ID --status ... --finding "..."` | record a receipt; use `--role verifier` for a verifier |
-| `close ID [--status done\|cancelled] [--reason "..."]` | terminal status; done needs a verifier receipt unless `--force` |
-| `install DIR` | copy the kit into another project |
+| `init [--name NAME]` | Add missing project templates/layout. |
+| `new TITLE [--kind task] [--parent E-001]` | Draft item; repeat `--owns PATH` / `--depends ID`; parentless tasks use `--standalone-reason TEXT`. |
+| `plan ID --file F` or `--text S` | Replace Plan; optional `--phase PHASE` and/or `--start`. |
+| `design ID --file F` or `--text S` | Replace Design; same optional state flags. |
+| `set ID key=value ...` | status, phase, parent, title, outcome, priority, depends_on, owns, acceptance, scope_in, scope_out, standalone_reason. |
+| `approve ID [--by NAME]` | Record current scope approval; draft becomes todo; print exact scope and hash. |
+| `decide ID TEXT` / `log ID TEXT` | Append decision / progress note. |
+| `result ID --status STATUS --finding TEXT` | Receipt; optional `--role ROLE` (default worker), repeatable/comma-separated `--artifacts PATH`, `--decision TEXT`, `--next TEXT`. |
+| `close ID [--status done\|cancelled] [--reason TEXT] [--force]` | Done requires current verifier proof; force records an unverified exception, not success. |
+| `board` | Regenerate derived `.workflow/board.html`, not a read-only command. |
+| `install DIR [--name NAME] [--force]` | Scaffold; preservation/manual-merge contract in `docs/install.md`. |
 
-Only the orchestrator mutates records. Workers write artifacts and return a
-receipt. Approval covers only the scope fields (kind, parent, title, outcome,
-scope, acceptance, dependencies); status, phase, plan, design, decisions,
-progress and artifacts never invalidate it. Re-approve only after a scope
-edit.
+Plan/design require exactly one content source. Without flags they change only
+content, never rewind state. `--phase` explicitly selects any valid phase but
+does not imply status; only `--start` requests in-progress. Content and requested
+state changes validate before one atomic mutation, then refresh the board.
+Use `set` for other state corrections. Example:
 
-List fields use one value per call. Separate multiple `scope_in`, `scope_out`
-and `acceptance` values with `;`; separate `owns` and `depends_on` with `,`.
-Repeating the same list key in one `set` call is rejected rather than silently
-keeping the last value.
+```sh
+workflow design T-001 --file /path/to/design.md --phase implement --start
+```
 
-A receipt is fixed: `status` (`done`, `blocked`, `needs-decision`, `failed`),
-one- or two-sentence `finding`, `artifacts`, `decision`, `next`. A verifier
-`done` receipt sets `verified_at` only when recorded with `--role verifier`.
-Then close the item. `close --status done` without a verifier receipt is
-refused unless `--force` is passed deliberately.
+List assignments appear once per `set` call: separate scope/acceptance entries
+with `;`, owns/dependencies with `,`. Duplicate list keys are rejected. Ownership
+comparison is lexical on literal project-relative paths, including missing paths;
+it does not expand globs or resolve links.
 
-## Phase and plan/design discipline
+Receipt statuses are `done`, `blocked`, `needs-decision`, `failed`. A verifier
+success must use `--role verifier --status done`; record it and `close` in two
+calls. Tracked target changes invalidate proof independently of scope approval.
+Done-history refusals require an explicitly created/reviewed follow-up; see
+AGENTS for the freeze convention and deliberate exception policy.
 
-Use the phases as a working sequence, not decoration:
-
-1. `new` creates a draft in `plan` by default.
-2. Approve the scope. The item is `todo`.
-3. `workflow plan ID --file F` (or `--text`) writes the pre-exploration
-   approach: question, dimensions, sources, stop conditions, acceptance
-   mapping. Then `set ID phase=plan` or move to `explore`.
-4. Explore with `brief --for explorer`; artifacts go under
-   `items/<id>/outputs/`.
-5. `workflow design ID --file F` (or `--text`) writes the post-exploration
-   solution: outline, canonical claims or numbers, decisions, trade-offs,
-   checks, risks. Then `set ID phase=design`.
-6. `set ID status=in-progress phase=implement`; a worker reads
-   `brief --for worker` and implements the design in the owned deliverable.
-7. `set ID phase=verify`; a verifier reads `brief --for verifier`, checks
-   acceptance and design, and returns a verifier receipt.
-8. `result ID --role verifier ...`, then `close ID`.
-
-`brief` and `validate` warn when an open item beyond `plan` has no plan or an
-`implement`/`verify` item has no design. `close` warns but does not refuse
-when a done item has no design. Short plans and designs are enough; empty ones
-are not. For an epic, put the architecture, canonical numbers, coverage matrix
-and child decomposition in its `## Design`.
-
-## Exit codes
-
-`0` success · `1` validation failure · `2` invalid input.
-
-## Safety
-
-- Writes are serialized by one `FlockStore` lock in `.workflow/.locks/` and
-  written atomically.
-- Do not hand-edit `item.md` during normal work; use the commands. Use `###`
-  for subsections inside a section.
-- Run `validate` after structural changes or a merge.
+Item writes use a project lock and atomic replacement. Do not hand-edit item
+records in normal operation; use `###` inside narrative sections. Run `validate`
+after structural changes/merges. Exit codes: `0` success, `1` validation failure,
+`2` invalid input. Warnings are not new phase/approval gates.

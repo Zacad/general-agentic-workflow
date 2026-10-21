@@ -1,96 +1,101 @@
 # Install the workflow
 
-The kit is:
-
-```
-AGENTS.md
-.agents/roles/
-.agents/skills/
-cli/                 source only; vendor/ is installed per machine
-docs/
-```
+Installation adds a scaffold; it does not manage or merge host documents.
+Read the target's root/nested `AGENTS.md`, harness configuration, `.agents/`
+and existing `.workflow/` first. Review proposed additions and collisions.
 
 ## Prerequisites
 
-- PHP 8.4 or newer with the mbstring extension.
-- Composer 2.
-- `symfony/yaml`, `symfony/console`, `symfony/filesystem`, `symfony/finder`
-  and `symfony/lock`, installed by Composer.
+- Runtime: PHP **>=8.4.1**, Composer 2 and **iconv**. The locked dependencies
+  provide an mbstring polyfill; native mbstring is not a runtime prerequisite.
+- Development: full `composer install` additionally requires native **dom,
+  filter, json, libxml, mbstring, phar, tokenizer and xmlwriter**.
+  Composer's platform checks are authoritative.
 
-## Install
+## Copy and merge
 
-1. **Read the target's rules first.** Inspect its root and nested `AGENTS.md`,
-   harness config, `.agents/` and any existing `.workflow/`.
+From a bootstrapped kit:
 
-2. **Copy the kit.** You can use the CLI:
+```sh
+/path/to/kit/cli/bin/workflow install /path/to/target
+```
 
-   ```sh
-   /path/to/kit/cli/bin/workflow install /path/to/target
-   ```
+Default copying is add-only. Existing root `AGENTS.md`, `README.md` and `LICENSE`
+are preserved **even with `--force`**. Existing workflow documents, item history,
+outputs, host configuration and gitignore files are preserved. Source project
+records are never imported; a safe derived board may regenerate.
 
-   Or copy manually: exclude `cli/vendor/` and `cli/tools/`, and do not
-   overwrite an existing `AGENTS.md`; merge it instead.
+`--force` deliberately refreshes ordinary kit-relative files under `.agents/`,
+`docs/` and `cli/`. Review/back up external customizations first. It does not
+merge content or delete target-only files. Source/destination symlinks and type
+collisions are held or rejected, not followed during copying. Source-equal,
+ancestor and descendant targets are rejected, including resolved aliases.
 
-3. **Merge, do not replace.** If the target already has an `AGENTS.md`, merge
-   the workflow rules into it. Keep stricter local rules and deliberate
-   exceptions. Hold same-name collisions for review.
+Manually merge the canonical workflow rules from the kit's `AGENTS.md` into
+the preserved target root instructions. Keep host authority and stricter rules;
+resolve conflicts through review. Every installed role explicitly loads that
+root file, even when used separately. If it is absent, incomplete or conflicting,
+the role must surface the need for a reviewed manual merge, not assume the host
+rules were replaced. Do not dispatch workflow roles until this merge is reviewed.
 
-4. **Install dependencies and initialize.**
+## Bootstrap the target
 
-   ```sh
-   cd /path/to/target/cli
-   composer install
-   cd ..
-   ./cli/bin/workflow --project /path/to/target init
-   ./cli/bin/workflow --project /path/to/target validate
-   ```
+```sh
+cd /path/to/target/cli
+composer install --no-dev
+cd ..
+./cli/bin/workflow init
+./cli/bin/workflow validate
+```
 
-5. **Register the agents.** For OpenCode V2, copy
-   [opencode.example.json](opencode.example.json) to the target root as
-   `opencode.json`, or merge its `agents` entries into an existing config. Keep
-   it at the project root because `{file:...}` paths resolve from the config
-   file. The example:
+The installer already initializes missing records; `init` is safe to repeat.
+Manual copies must exclude source `.workflow/`, `cli/vendor/`, `cli/tools/`
+and caches; initialize with the target's templates instead.
 
-   - uses V2 fields (`agents`, `system`, ordered `permissions`);
-   - omits `model`, so each agent inherits the session model — add
-     `"model": "provider/model"` to pin one;
-   - sets `default_agent` to `workflow-orchestrator`, so new sessions start
-     there — remove it to choose per session;
-   - restricts the orchestrator to the three workflow subagents, and denies
-     subagents the ability to launch more agents.
+For harness registration, review [opencode.example.json](opencode.example.json)
+and merge the applicable entries into the target's configuration; do not
+overwrite existing settings. Its role-file references are project-relative, so
+keep the configuration at the project root. Restart the harness after changing
+prompts/configuration and check that its four workflow roles are available.
+CLI/static file checks do not prove that an LLM actually loaded the instructions.
 
-   Do not use the V1 `agent`, `prompt`, `permission`, `bash` or `task` fields.
-   Skills under `.agents/skills/` are discovered automatically, so no `skills`
-   entry is needed. Check the result with:
+## Isolated smoke check
 
-   ```sh
-   cd /path/to/target
-   opencode debug agents
-   ```
+Run this from the bootstrapped kit root, not a user's project. It uses the
+source binary deliberately, so no second dependency download is needed. It
+checks scaffold/record commands, not the installed binary's runtime bootstrap
+or a real harness session. The cancelled smoke item is retained, not deleted.
 
-   Restart the harness after prompt or config changes.
+<!-- protocol-example: install-smoke -->
+```sh
+kit="$PWD"
+export PATH="$kit/cli/bin:$PATH"
+mkdir -p "${TMPDIR:-/tmp/opencode}"
+smoke="$(mktemp -d "${TMPDIR:-/tmp/opencode}/workflow-install.XXXXXX")"
+workflow install "$smoke" --name "Isolated smoke"
+cd "$smoke"
+workflow validate
+workflow new "Check scaffold" --kind task \
+  --standalone-reason "Isolated installation smoke, not project work" \
+  --outcome "The isolated scaffold accepts a valid record."
+workflow set T-001 'scope_in=CLI record smoke' 'scope_out=Real project work' \
+  'acceptance=The role brief loads and cancelled history remains'
+workflow plan T-001 --text "Exercise record commands only; no exploration needed for this smoke."
+workflow design T-001 --text "Read the brief and cancel this retained smoke record; no deliverable or open risks."
+workflow brief T-001 --for orchestrator --json
+# After confirmation of this exact isolated smoke scope:
+workflow approve T-001 --by user
+workflow brief T-001 --for worker
+workflow close T-001 --status cancelled --reason "Isolated smoke completed; no project work requested"
+workflow board
+workflow validate
+printf 'Smoke retained at %s\n' "$smoke"
+```
 
-   Make the CLI easy to call:
+## Refresh
 
-   ```sh
-   export PATH="/path/to/target/cli/bin:$PATH"
-   workflow --project /path/to/target validate
-   ```
-
-6. **Verify.** `validate` should report `OK`. Create one throwaway item, approve
-   it, read its brief, record a result, and run `board`. Then delete the
-   throwaway item directory and run `validate` again.
-
-## Update
-
-Copy the changed kit files, merge `AGENTS.md` if its rules changed, refresh
-`opencode.json` if `docs/opencode.example.json` changed, run `composer install`
-if dependencies changed, and run `validate`. Restart the harness after prompt
-or config changes. Do not copy the kit's `.workflow/`, `board.html` or
-`.locks/` directory.
-
-## What not to copy
-
-- The source project's `.workflow/` records, board or lock.
-- `cli/vendor/` and `cli/tools/`.
-- Any historical archives or per-attempt directories.
+Review changed kit files and held paths, then copy additions or deliberately
+use `install --force` for reviewed kit-file refreshes. Merge root rules and
+harness settings manually, rerun `composer install --no-dev` if dependencies
+changed, then `validate`. Keep existing workflow history. There is no managed
+updater, automatic merger, deletion engine or source-history migration.

@@ -29,7 +29,8 @@ final class FrontMatter
             }
         }
 
-        $yaml = substr($raw, 4, $end - 4);
+        // The newline before the delimiter belongs to YAML block scalars.
+        $yaml = substr($raw, 4, $end - 3);
         $body = substr($raw, $end + 5);
 
         try {
@@ -54,10 +55,11 @@ final class FrontMatter
      */
     public static function render(array $data, string $body): string
     {
-        $yaml = Yaml::dump($data, 8, 2, Yaml::DUMP_MULTI_LINE_LITERAL_BLOCK);
-        // Symfony YAML renders an empty PHP array as "{}"; in our schema empty
-        // values are always sequences, and "[]" keeps the file readable.
-        $yaml = (string) preg_replace('/:\s*\{\s*\}/', ': []', $yaml);
+        $yaml = Yaml::dump($data, 8, 2, Yaml::DUMP_MULTI_LINE_LITERAL_BLOCK | Yaml::DUMP_EMPTY_ARRAY_AS_SEQUENCE);
+        // Keep scalar newlines intact, adding only a missing delimiter boundary.
+        if (!str_ends_with($yaml, "\n")) {
+            $yaml .= "\n";
+        }
         $body = ltrim(str_replace("\r\n", "\n", $body), "\n");
 
         return "---\n".$yaml."---\n\n".rtrim($body)."\n";

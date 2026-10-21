@@ -40,58 +40,107 @@ final class BriefCommand extends BaseCommand
             return self::INVALID;
         }
 
-        $approval = $this->approvalLabel($item);
-        $dependencies = $this->dependencyLines($item, $items);
-        $upstream = $this->upstreamArtifacts($item, $items);
-        $plan = $item->section('Plan');
-        $design = $item->section('Design');
-        $parent = $item->parent !== null ? ($items[$item->parent] ?? null) : null;
-        $parentDesign = $parent?->section('Design') ?? '';
-        $decisions = $item->section('Decisions');
-
+        $packet = $this->packet($item, $items, $role);
         if ($input->getOption('json')) {
-            $this->writeJson($output, [
-                'item' => $item->toArray(),
-                'role' => $role,
-                'approval' => $approval,
-                'dependencies' => $dependencies,
-                'upstream_artifacts' => $upstream,
-                'plan' => $plan,
-                'design' => $design,
-                'parent_design' => $parentDesign,
-                'decisions' => $decisions,
-                'deliverable_paths' => $item->owns,
-            ]);
-
-            return self::SUCCESS;
+            $this->writeJson($output, $packet);
+        } else {
+            $this->writeText($output, $packet);
         }
 
-        $output->writeln(sprintf('%s · %s', $item->id, $item->title));
+        return self::SUCCESS;
+    }
+
+    /**
+     * @param array<string, Item> $items
+     *
+     * @return array<string, mixed>
+     */
+    private function packet(Item $item, array $items, string $role): array
+    {
+        $parent = $item->parent !== null ? ($items[$item->parent] ?? null) : null;
+        // A delegation packet is not the persisted Item: new metadata must not
+        // silently become role input, especially for an independent verifier.
+        $packet = [
+            'item' => [
+                'id' => $item->id,
+                'kind' => $item->kind->value,
+                'parent' => $item->parent,
+                'title' => $item->title,
+                'status' => $item->status->value,
+                'phase' => $item->phase->value,
+                'priority' => $item->priority,
+                'depends_on' => $item->dependsOn,
+                'owns' => $item->owns,
+                'artifacts' => $item->artifacts,
+                'outcome' => $item->outcome,
+                'scope' => ['in' => $item->scopeIn, 'out' => $item->scopeOut],
+                'acceptance' => $item->acceptance,
+            ],
+            'role' => $role,
+            'approval' => $this->approvalLabel($item),
+            'dependencies' => $this->dependencyLines($item, $items),
+            'upstream_artifacts' => $this->upstreamArtifacts($item, $items),
+            'plan' => $item->section('Plan'),
+            'design' => $item->section('Design'),
+            'parent_design' => $parent?->section('Design') ?? '',
+            'decisions' => $item->section('Decisions'),
+            'deliverable_paths' => $item->owns,
+        ];
+
+        if ($role === 'explorer') {
+            $packet['output_target'] = '.workflow/items/'.$item->id.'/outputs/';
+        }
+
+        if ($role !== 'verifier' && $item->lastResult !== null) {
+            $receipt = $item->lastResult;
+            $packet['item']['last_result'] = [
+                'role' => in_array($receipt['role'] ?? null, ['orchestrator', 'explorer', 'worker', 'verifier'], true)
+                    ? $receipt['role'] : '?',
+                'status' => in_array($receipt['status'] ?? null, ['done', 'blocked', 'needs-decision', 'failed'], true)
+                    ? $receipt['status'] : '?',
+                'finding' => Text::truncate(is_string($receipt['finding'] ?? null) ? $receipt['finding'] : '', 100),
+            ];
+        }
+
+        return $packet;
+    }
+
+    /**
+     * @param array<string, mixed> $packet
+     */
+    private function writeText(OutputInterface $output, array $packet): void
+    {
+        $item = $packet['item'];
+        $role = $packet['role'];
+        $plan = $packet['plan'];
+        $design = $packet['design'];
+
+        $output->writeln(sprintf('%s · %s', $item['id'], $item['title']));
         $output->writeln(sprintf(
             'kind: %s · status: %s · phase: %s · priority: %d · role: %s',
-            $item->kind->value,
-            $item->status->value,
-            $item->phase->value,
-            $item->priority,
+            $item['kind'],
+            $item['status'],
+            $item['phase'],
+            $item['priority'],
             $role,
         ));
         $output->writeln(sprintf(
             'parent: %s · approval: %s',
-            $item->parent ?? 'none',
-            $approval,
+            $item['parent'] ?? 'none',
+            $packet['approval'],
         ));
         $output->writeln(sprintf(
             'depends: %s · owns: %s',
-            Text::inlineList($dependencies),
-            Text::inlineList($item->owns),
+            Text::inlineList($packet['dependencies']),
+            Text::inlineList($packet['deliverable_paths']),
         ));
-        $output->writeln('outcome: '.($item->outcome !== '' ? $item->outcome : '(not set)'));
-        $output->writeln('scope in: '.Text::inlineList($item->scopeIn));
-        $output->writeln('scope out: '.Text::inlineList($item->scopeOut));
+        $output->writeln('outcome: '.($item['outcome'] !== '' ? $item['outcome'] : '(not set)'));
+        $output->writeln('scope in: '.Text::inlineList($item['scope']['in']));
+        $output->writeln('scope out: '.Text::inlineList($item['scope']['out']));
 
-        if ($item->acceptance !== []) {
+        if ($item['acceptance'] !== []) {
             $output->writeln('acceptance:');
-            foreach ($item->acceptance as $index => $criterion) {
+            foreach ($item['acceptance'] as $index => $criterion) {
                 $output->writeln(sprintf('  %d. %s', $index + 1, $criterion));
             }
         } else {
@@ -107,15 +156,15 @@ final class BriefCommand extends BaseCommand
             }
         }
 
-        if ($plan === '' && in_array($item->status->value, ['todo', 'in-progress'], true)
-            && ($role === 'explorer' || $item->phase->value !== 'plan')
+        if ($plan === '' && in_array($item['status'], ['todo', 'in-progress'], true)
+            && ($role === 'explorer' || $item['phase'] !== 'plan')
         ) {
-            $output->writeln('<comment>warning: no plan recorded; run "workflow plan '.$item->id.'" before delegating.</comment>');
+            $output->writeln('<comment>warning: no plan recorded; run "workflow plan '.$item['id'].'" before delegating.</comment>');
         }
 
-        if ($parentDesign !== '') {
+        if ($packet['parent_design'] !== '') {
             $output->writeln('parent design:');
-            foreach (preg_split('/\R/u', $parentDesign) ?: [] as $line) {
+            foreach (preg_split('/\R/u', $packet['parent_design']) ?: [] as $line) {
                 $output->writeln('  '.$line);
             }
         }
@@ -129,43 +178,44 @@ final class BriefCommand extends BaseCommand
             }
         }
 
-        if ($design === '' && in_array($item->status->value, ['todo', 'in-progress'], true)
-            && in_array($item->phase->value, ['implement', 'verify'], true)
+        if ($design === '' && in_array($item['status'], ['todo', 'in-progress'], true)
+            && in_array($item['phase'], ['implement', 'verify'], true)
         ) {
-            $output->writeln('<comment>warning: no design recorded; run "workflow design '.$item->id.'" before delegating.</comment>');
+            $output->writeln('<comment>warning: no design recorded; run "workflow design '.$item['id'].'" before delegating.</comment>');
         }
 
-        if ($role === 'explorer') {
-            $output->writeln('write: items/'.$item->id.'/outputs/ (one focused research artifact)');
+        if (isset($packet['output_target'])) {
+            $output->writeln('write: '.$packet['output_target'].' (one focused research artifact)');
         }
 
-        if ($item->artifacts !== []) {
+        if ($item['artifacts'] !== []) {
             $output->writeln('artifacts:');
-            foreach ($item->artifacts as $artifact) {
+            foreach ($item['artifacts'] as $artifact) {
                 $output->writeln('  - '.$artifact);
             }
         }
 
-        if ($decisions !== '') {
+        if ($packet['decisions'] !== '') {
             $output->writeln('decisions:');
-            foreach (preg_split('/\R/u', $decisions) ?: [] as $line) {
+            foreach (preg_split('/\R/u', $packet['decisions']) ?: [] as $line) {
                 $output->writeln('  '.$line);
             }
         }
 
-        if ($upstream !== []) {
+        if ($packet['upstream_artifacts'] !== []) {
             $output->writeln('upstream artifacts:');
-            foreach ($upstream as $id => $paths) {
+            foreach ($packet['upstream_artifacts'] as $id => $paths) {
                 $output->writeln(sprintf('  %s: %s', $id, implode(', ', $paths)));
             }
         }
 
-        if ($item->lastResult !== null && $role !== 'verifier') {
+        if (isset($item['last_result'])) {
+            $receipt = $item['last_result'];
             $output->writeln(sprintf(
                 'last result: %s · %s — %s',
-                (string) ($item->lastResult['role'] ?? '?'),
-                (string) ($item->lastResult['status'] ?? '?'),
-                Text::truncate((string) ($item->lastResult['finding'] ?? ''), 100),
+                $receipt['role'],
+                $receipt['status'],
+                $receipt['finding'],
             ));
         }
 
@@ -174,8 +224,6 @@ final class BriefCommand extends BaseCommand
         }
 
         $output->writeln('return: one receipt (status, finding, artifacts, decision, next)');
-
-        return self::SUCCESS;
     }
 
     private function approvalLabel(Item $item): string

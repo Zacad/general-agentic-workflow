@@ -93,7 +93,7 @@ final class ProjectView
                 if ($other->id === $item->id) {
                     continue;
                 }
-                if ($this->sharesOwnedPath($item, $other)) {
+                if ($this->sharesOwnedPath($item, $other, $items)) {
                     $overlaps[] = $other->id;
                 }
             }
@@ -119,7 +119,7 @@ final class ProjectView
             if ($other->id === $item->id || $other->status !== Status::InProgress) {
                 continue;
             }
-            if ($this->sharesOwnedPath($item, $other)) {
+            if ($this->sharesOwnedPath($item, $other, $items)) {
                 $overlaps[] = $other->id;
             }
         }
@@ -129,8 +129,12 @@ final class ProjectView
         return array_values(array_unique($overlaps));
     }
 
-    private function sharesOwnedPath(Item $left, Item $right): bool
+    /** @param array<string, Item> $items */
+    private function sharesOwnedPath(Item $left, Item $right, array $items): bool
     {
+        if (ItemValidator::dependencyOrdered($left, $right, $items)) {
+            return false;
+        }
         foreach ($left->owns as $leftPath) {
             foreach ($right->owns as $rightPath) {
                 if (ItemValidator::pathsOverlap($leftPath, $rightPath)) {

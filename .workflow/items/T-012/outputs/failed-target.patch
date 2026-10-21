@@ -1,0 +1,1105 @@
+diff --git a/cli/src/Validate/StructureValidator.php b/cli/src/Validate/StructureValidator.php
+new file mode 100644
+index 0000000..6bbf596
+--- /dev/null
++++ b/cli/src/Validate/StructureValidator.php
+@@ -0,0 +1,176 @@
++<?php
++
++declare(strict_types=1);
++
++namespace Workflow\Validate;
++
++use Workflow\Domain\Item;
++use Workflow\Domain\Kind;
++
++/** Pure record/graph checks, without workflow or filesystem policy. */
++final class StructureValidator
++{
++    /** @param array<array-key, Item> $items */
++    public function validate(array $items): ValidationResult
++    {
++        $result = new ValidationResult();
++        $graph = [];
++        foreach ($items as $item) {
++            $this->validateIdentity($item, $result);
++            $graph[$item->id] = $item;
++        }
++        foreach ($graph as $item) {
++            $this->validateParent($item, $graph, $result);
++        }
++        $this->validateDependencies($graph, $result);
++
++        return $result;
++    }
++
++    /**
++     * Only the candidate's own structure, changed reverse parent relationships,
++     * and cycles involving the candidate can be affected by this write.
++     *
++     * @param array<string, Item> $items The graph before the write.
++     */
++    public function validateCandidate(Item $candidate, array $items): ValidationResult
++    {
++        $previous = $items[$candidate->id] ?? null;
++        $items[$candidate->id] = $candidate;
++        $result = new ValidationResult();
++        $this->validateIdentity($candidate, $result);
++        $this->validateParent($candidate, $items, $result);
++
++        if ($previous === null || $previous->kind !== $candidate->kind) {
++            foreach ($items as $child) {
++                if ($child->id !== $candidate->id && $child->parent === $candidate->id) {
++                    $this->validateParent($child, $items, $result);
++                }
++            }
++        }
++        $this->validateDependencies($items, $result, $candidate->id);
++
++        return $result;
++    }
++
++    private function validateIdentity(Item $item, ValidationResult $result): void
++    {
++        if (preg_match('/\A'.preg_quote($item->kind->prefix(), '/').'-\d+\z/', $item->id) !== 1) {
++            $result->error(sprintf('%s: id does not match kind %s.', $item->id, $item->kind->value));
++        }
++    }
++
++    /** @param array<string, Item> $items */
++    private function validateParent(Item $item, array $items, ValidationResult $result): void
++    {
++        if ($item->kind === Kind::Epic) {
++            if ($item->parent !== null) {
++                $result->error(sprintf('%s: an epic cannot have a parent.', $item->id));
++            }
++
++            return;
++        }
++
++        if ($item->parent === null) {
++            if ($item->kind === Kind::Subtask) {
++                $result->error(sprintf('%s: a subtask requires a task parent.', $item->id));
++            } else {
++                $reason = $item->extra['standalone_reason'] ?? '';
++                if (!is_string($reason) || trim($reason) === '') {
++                    $result->warning(sprintf('%s: standalone task without standalone_reason.', $item->id));
++                }
++            }
++
++            return;
++        }
++
++        if ($item->parent === $item->id) {
++            $result->error(sprintf('%s: item cannot be its own parent.', $item->id));
++
++            return;
++        }
++
++        $parent = $items[$item->parent] ?? null;
++        if ($parent === null) {
++            $result->error(sprintf('%s: parent %s does not exist.', $item->id, $item->parent));
++
++            return;
++        }
++
++        $expected = $item->kind === Kind::Subtask ? Kind::Task : Kind::Epic;
++        if ($parent->kind !== $expected) {
++            $result->error(sprintf(
++                '%s: %s parent must be a %s, got %s.',
++                $item->id,
++                $item->kind->value,
++                $expected->value,
++                $parent->kind->value,
++            ));
++        }
++    }
++
++    /** @param array<string, Item> $items */
++    private function validateDependencies(array $items, ValidationResult $result, ?string $candidateId = null): void
++    {
++        $graph = [];
++        foreach ($items as $id => $item) {
++            // PHP converts numeric-string array keys to integers, including
++            // malformed legacy IDs that still need diagnostics, not a crash.
++            $id = (string) $id;
++            $graph[$id] = [];
++            foreach ($item->dependsOn as $dependency) {
++                if ($dependency === $id) {
++                    if ($candidateId === null || $candidateId === $id) {
++                        $result->error(sprintf('%s: item depends on itself.', $id));
++                    }
++                    continue;
++                }
++                if (!isset($items[$dependency])) {
++                    if ($candidateId === null || $candidateId === $id) {
++                        $result->error(sprintf('%s: dependency %s does not exist.', $id, $dependency));
++                    }
++                    continue;
++                }
++                $graph[$id][] = $dependency;
++            }
++        }
++
++        $state = [];
++        $stack = [];
++        $reported = [];
++        $visit = function (string $id) use (&$visit, &$state, &$stack, &$reported, $graph, $result, $candidateId): void {
++            if (($state[$id] ?? 0) === 2) {
++                return;
++            }
++            if (($state[$id] ?? 0) === 1) {
++                $position = array_search($id, $stack, true);
++                $cycle = array_slice($stack, $position === false ? 0 : $position);
++                if ($candidateId !== null && !in_array($candidateId, $cycle, true)) {
++                    return;
++                }
++                $cycle[] = $id;
++                $key = implode('>', $cycle);
++                if (!isset($reported[$key])) {
++                    $reported[$key] = true;
++                    $result->error('Dependency cycle: '.implode(' -> ', $cycle));
++                }
++
++                return;
++            }
++
++            $state[$id] = 1;
++            $stack[] = $id;
++            foreach ($graph[$id] as $dependency) {
++                $visit($dependency);
++            }
++            array_pop($stack);
++            $state[$id] = 2;
++        };
++
++        // Starting at the candidate keeps it on the stack throughout traversal,
++        // so every path back to it is detected even with other legacy cycles.
++        foreach ($candidateId === null ? array_keys($graph) : [$candidateId] as $id) {
++            $visit((string) $id);
++        }
++    }
++}
+diff --git a/cli/src/Validate/ItemValidator.php b/cli/src/Validate/ItemValidator.php
+index aa5063e..56537a4 100644
+--- a/cli/src/Validate/ItemValidator.php
++++ b/cli/src/Validate/ItemValidator.php
+@@ -7,7 +7,6 @@ namespace Workflow\Validate;
+ use Workflow\Domain\FrontMatter;
+ use Workflow\Domain\InvalidItemException;
+ use Workflow\Domain\Item;
+-use Workflow\Domain\Kind;
+ use Workflow\Store\ItemStore;
+ 
+ final class ItemValidator
+@@ -34,6 +33,7 @@ final class ItemValidator
+         }
+ 
+         $items = [];
++        $records = [];
+         foreach ($this->store->ids() as $directoryId) {
+             $itemDirectory = $this->store->itemsDir().'/'.$directoryId;
+             $this->validateDirectory($itemDirectory, $directoryId, $result);
+@@ -62,15 +62,13 @@ final class ItemValidator
+                 $result->error(sprintf('%s: front matter id is %s.', $directoryId, $item->id));
+             }
+ 
+-            if (preg_match('/^'.preg_quote($item->kind->prefix(), '/').'-\d+$/', $item->id) !== 1) {
+-                $result->error(sprintf('%s: id does not match kind %s.', $item->id, $item->kind->value));
+-            }
+-
+             $items[$item->id] = $item;
++            $records[] = $item;
+         }
+ 
+-        $this->validateParents($items, $result);
+-        $this->validateDependencies($items, $result);
++        $structure = (new StructureValidator())->validate($records);
++        $result->errors = array_merge($result->errors, $structure->errors);
++        $result->warnings = array_merge($result->warnings, $structure->warnings);
+         $this->validateApprovals($items, $result);
+         $this->validatePlans($items, $result);
+         $this->validateDesigns($items, $result);
+@@ -102,112 +100,6 @@ final class ItemValidator
+         }
+     }
+ 
+-    /**
+-     * @param array<string, Item> $items
+-     */
+-    private function validateParents(array $items, ValidationResult $result): void
+-    {
+-        foreach ($items as $item) {
+-            if ($item->kind === Kind::Epic) {
+-                if ($item->parent !== null) {
+-                    $result->error(sprintf('%s: an epic cannot have a parent.', $item->id));
+-                }
+-                continue;
+-            }
+-
+-            if ($item->parent === null) {
+-                if ($item->kind === Kind::Subtask) {
+-                    $result->error(sprintf('%s: a subtask requires a task parent.', $item->id));
+-                } else {
+-                    $reason = $item->extra['standalone_reason'] ?? '';
+-                    if (!is_string($reason) || trim($reason) === '') {
+-                        $result->warning(sprintf('%s: standalone task without standalone_reason.', $item->id));
+-                    }
+-                }
+-                continue;
+-            }
+-
+-            if ($item->parent === $item->id) {
+-                $result->error(sprintf('%s: item cannot be its own parent.', $item->id));
+-                continue;
+-            }
+-
+-            $parent = $items[$item->parent] ?? null;
+-            if ($parent === null) {
+-                $result->error(sprintf('%s: parent %s does not exist.', $item->id, $item->parent));
+-                continue;
+-            }
+-
+-            $expected = $item->kind === Kind::Subtask ? Kind::Task : Kind::Epic;
+-            if ($parent->kind !== $expected) {
+-                $result->error(sprintf(
+-                    '%s: %s parent must be a %s, got %s.',
+-                    $item->id,
+-                    $item->kind->value,
+-                    $expected->value,
+-                    $parent->kind->value,
+-                ));
+-            }
+-        }
+-    }
+-
+-    /**
+-     * @param array<string, Item> $items
+-     */
+-    private function validateDependencies(array $items, ValidationResult $result): void
+-    {
+-        $graph = [];
+-        foreach ($items as $id => $item) {
+-            $graph[$id] = [];
+-            foreach ($item->dependsOn as $dependency) {
+-                if ($dependency === $id) {
+-                    $result->error(sprintf('%s: item depends on itself.', $id));
+-                    continue;
+-                }
+-                if (!isset($items[$dependency])) {
+-                    $result->error(sprintf('%s: dependency %s does not exist.', $id, $dependency));
+-                    continue;
+-                }
+-                $graph[$id][] = $dependency;
+-            }
+-        }
+-
+-        $state = [];
+-        $stack = [];
+-        $reported = [];
+-
+-        $visit = function (string $id) use (&$visit, &$state, &$stack, &$reported, $graph, $result): void {
+-            if (($state[$id] ?? 0) === 2) {
+-                return;
+-            }
+-
+-            if (($state[$id] ?? 0) === 1) {
+-                $position = array_search($id, $stack, true);
+-                $cycle = array_slice($stack, $position === false ? 0 : $position);
+-                $cycle[] = $id;
+-                $key = implode('>', $cycle);
+-                if (!isset($reported[$key])) {
+-                    $reported[$key] = true;
+-                    $result->error('Dependency cycle: '.implode(' -> ', $cycle));
+-                }
+-
+-                return;
+-            }
+-
+-            $state[$id] = 1;
+-            $stack[] = $id;
+-            foreach ($graph[$id] as $dependency) {
+-                $visit($dependency);
+-            }
+-            array_pop($stack);
+-            $state[$id] = 2;
+-        };
+-
+-        foreach (array_keys($graph) as $id) {
+-            $visit($id);
+-        }
+-    }
+-
+     /**
+      * @param array<string, Item> $items
+      */
+diff --git a/cli/src/Store/ItemStore.php b/cli/src/Store/ItemStore.php
+index 685a3f7..06085fa 100644
+--- a/cli/src/Store/ItemStore.php
++++ b/cli/src/Store/ItemStore.php
+@@ -11,6 +11,7 @@ use Workflow\Domain\InvalidItemException;
+ use Workflow\Domain\Item;
+ use Workflow\Domain\Kind;
+ use Workflow\Domain\WorkflowException;
++use Workflow\Validate\StructureValidator;
+ 
+ final class ItemStore
+ {
+@@ -120,6 +121,9 @@ final class ItemStore
+         return $this->withLock(function () use ($id, $callback): mixed {
+             $item = $this->load($id);
+             $result = $callback($item);
++            if ($item->id !== $id) {
++                throw new InvalidItemException(sprintf('Cannot change item id %s to %s.', $id, $item->id));
++            }
+             $this->persist($item);
+ 
+             return $result;
+@@ -184,6 +188,21 @@ final class ItemStore
+ 
+     private function persist(Item $item): void
+     {
++        $items = [];
++        foreach ($this->ids() as $id) {
++            try {
++                $items[$id] = $this->load($id);
++            } catch (WorkflowException) {
++                // Unreadable/malformed legacy records are diagnosed by full
++                // validate, not a gate on unrelated repairs. A reference to
++                // one still fails the candidate's missing-reference check.
++            }
++        }
++        $result = (new StructureValidator())->validateCandidate($item, $items);
++        if (!$result->ok()) {
++            throw new InvalidItemException(implode("\n", $result->errors));
++        }
++
+         $item->updated = gmdate('c');
+         $contents = FrontMatter::render($item->toArray(), $item->body);
+         $this->atomicWrite($this->itemPath($item->id), $contents);
+diff --git a/cli/src/Console/Command/NewCommand.php b/cli/src/Console/Command/NewCommand.php
+index e2e1177..58f506f 100644
+--- a/cli/src/Console/Command/NewCommand.php
++++ b/cli/src/Console/Command/NewCommand.php
+@@ -12,6 +12,7 @@ use Workflow\Domain\Item;
+ use Workflow\Domain\Kind;
+ use Workflow\Domain\Phase;
+ use Workflow\Domain\Status;
++use Workflow\Domain\WorkflowException;
+ use Workflow\Support\Clock;
+ 
+ final class NewCommand extends BaseCommand
+@@ -59,20 +60,7 @@ final class NewCommand extends BaseCommand
+             $parent = null;
+         }
+ 
+-        if ($parent !== null && !$store->exists($parent)) {
+-            $output->writeln(sprintf('<error>Parent does not exist: %s</error>', $parent));
+-
+-            return self::INVALID;
+-        }
+-
+         $depends = array_values(array_filter(array_map('trim', $input->getOption('depends'))));
+-        foreach ($depends as $dependency) {
+-            if (!$store->exists($dependency)) {
+-                $output->writeln(sprintf('<error>Dependency does not exist: %s</error>', $dependency));
+-
+-                return self::INVALID;
+-            }
+-        }
+ 
+         $now = Clock::now();
+         $body = "## Plan\n\n## Design\n\n## Progress\n";
+@@ -105,7 +93,13 @@ final class NewCommand extends BaseCommand
+             $item->extra['standalone_reason'] = $standaloneReason;
+         }
+ 
+-        $store->create($item);
++        try {
++            $store->create($item);
++        } catch (WorkflowException $exception) {
++            $output->writeln('<error>'.$exception->getMessage().'</error>');
++
++            return self::INVALID;
++        }
+         $this->refreshBoard($input, $output);
+ 
+         if ($input->getOption('json')) {
+diff --git a/cli/tests/Validate/ItemValidatorTest.php b/cli/tests/Validate/ItemValidatorTest.php
+index 775f9d6..8239e20 100644
+--- a/cli/tests/Validate/ItemValidatorTest.php
++++ b/cli/tests/Validate/ItemValidatorTest.php
+@@ -5,6 +5,7 @@ declare(strict_types=1);
+ namespace Workflow\Tests\Validate;
+ 
+ use Workflow\Domain\Approval;
++use Workflow\Domain\FrontMatter;
+ use Workflow\Domain\Item;
+ use Workflow\Domain\Kind;
+ use Workflow\Domain\Phase;
+@@ -55,6 +56,16 @@ final class ItemValidatorTest extends WorkflowTestCase
+         return $item;
+     }
+ 
++    /** Deliberately bypass supported writes to exercise legacy diagnostics. */
++    private function writeRaw(Item $item): void
++    {
++        $directory = dirname($this->store->itemPath($item->id));
++        if (!is_dir($directory)) {
++            mkdir($directory, 0777, true);
++        }
++        file_put_contents($directory.'/item.md', FrontMatter::render($item->toArray(), $item->body));
++    }
++
+     public function testValidProjectPasses(): void
+     {
+         $this->store->create($this->make('E-001', Kind::Epic));
+@@ -72,8 +83,8 @@ final class ItemValidatorTest extends WorkflowTestCase
+         $first->dependsOn = ['T-002'];
+         $second = $this->make('T-002', Kind::Task);
+         $second->dependsOn = ['T-001'];
+-        $this->store->create($first);
+-        $this->store->create($second);
++        $this->writeRaw($first);
++        $this->writeRaw($second);
+ 
+         $result = (new ItemValidator($this->store))->validate();
+ 
+@@ -84,13 +95,40 @@ final class ItemValidatorTest extends WorkflowTestCase
+     public function testBadParentKindIsDetected(): void
+     {
+         $this->store->create($this->make('E-001', Kind::Epic));
+-        $this->store->create($this->make('S-001', Kind::Subtask, 'E-001'));
++        $this->writeRaw($this->make('S-001', Kind::Subtask, 'E-001'));
+ 
+         $result = (new ItemValidator($this->store))->validate();
+ 
+         self::assertStringContainsString('subtask parent must be a task', implode("\n", $result->errors));
+     }
+ 
++    public function testFullDiagnosticsStillReportRawLegacyStructure(): void
++    {
++        $this->writeRaw($this->make('T-001', Kind::Epic, 'E-999'));
++        $this->writeRaw($this->make('S-001', Kind::Subtask));
++        $missing = $this->make('T-002', Kind::Task, 'E-999');
++        $missing->dependsOn = ['T-999', 'T-002'];
++        $this->writeRaw($missing);
++        $self = $this->make('T-003', Kind::Task, 'T-003');
++        $this->writeRaw($self);
++
++        $result = (new ItemValidator($this->store))->validate();
++        $errors = implode("\n", $result->errors);
++        foreach (['id does not match kind epic', 'an epic cannot have a parent', 'a subtask requires a task parent',
++            'parent E-999 does not exist', 'dependency T-999 does not exist', 'depends on itself', 'own parent'] as $message) {
++            self::assertStringContainsString($message, $errors);
++        }
++    }
++
++    public function testStandaloneTaskReasonIsStillOnlyGuidance(): void
++    {
++        $this->store->create($this->make('T-001', Kind::Task));
++        $result = (new ItemValidator($this->store))->validate();
++
++        self::assertSame([], $result->errors);
++        self::assertStringContainsString('standalone task without standalone_reason', implode("\n", $result->warnings));
++    }
++
+     public function testStaleApprovalIsDetected(): void
+     {
+         $item = $this->make('T-001', Kind::Task);
+diff --git a/cli/tests/Validate/StructureValidatorTest.php b/cli/tests/Validate/StructureValidatorTest.php
+new file mode 100644
+index 0000000..26aa989
+--- /dev/null
++++ b/cli/tests/Validate/StructureValidatorTest.php
+@@ -0,0 +1,136 @@
++<?php
++
++declare(strict_types=1);
++
++namespace Workflow\Tests\Validate;
++
++use PHPUnit\Framework\Attributes\DataProvider;
++use PHPUnit\Framework\TestCase;
++use Workflow\Domain\Item;
++use Workflow\Domain\Kind;
++use Workflow\Validate\StructureValidator;
++
++final class StructureValidatorTest extends TestCase
++{
++    private function make(string $id, Kind $kind = Kind::Task, ?string $parent = null, array $depends = []): Item
++    {
++        return Item::fromArray([
++            'id' => $id, 'kind' => $kind->value, 'parent' => $parent, 'depends_on' => $depends,
++        ], '');
++    }
++
++    public static function invalidStructures(): iterable
++    {
++        yield 'identity' => ['T-002', Kind::Epic, null, [], 'id does not match kind epic'];
++        yield 'malformed id' => ['task-2', Kind::Task, null, [], 'id does not match kind task'];
++        yield 'epic parent' => ['E-002', Kind::Epic, 'E-001', [], 'an epic cannot have a parent'];
++        yield 'task parent task' => ['T-002', Kind::Task, 'T-001', [], 'task parent must be a epic'];
++        yield 'task parent subtask' => ['T-002', Kind::Task, 'S-001', [], 'task parent must be a epic'];
++        yield 'missing subtask parent' => ['S-002', Kind::Subtask, null, [], 'a subtask requires a task parent'];
++        yield 'subtask parent epic' => ['S-002', Kind::Subtask, 'E-001', [], 'subtask parent must be a task'];
++        yield 'subtask parent subtask' => ['S-002', Kind::Subtask, 'S-001', [], 'subtask parent must be a task'];
++        yield 'missing parent reference' => ['T-002', Kind::Task, 'E-999', [], 'parent E-999 does not exist'];
++        yield 'self parent' => ['T-002', Kind::Task, 'T-002', [], 'own parent'];
++        yield 'missing dependency' => ['T-002', Kind::Task, null, ['T-999'], 'dependency T-999 does not exist'];
++        yield 'self dependency' => ['T-002', Kind::Task, null, ['T-002'], 'depends on itself'];
++    }
++
++    #[DataProvider('invalidStructures')]
++    public function testFullAndCandidateShareStructuralDiagnostics(string $id, Kind $kind, ?string $parent, array $depends, string $message): void
++    {
++        $items = [
++            'E-001' => $this->make('E-001', Kind::Epic),
++            'T-001' => $this->make('T-001', Kind::Task, 'E-001'),
++            'S-001' => $this->make('S-001', Kind::Subtask, 'T-001'),
++        ];
++        $candidate = $this->make($id, $kind, $parent, $depends);
++        $validator = new StructureValidator();
++
++        self::assertStringContainsString($message, implode("\n", $validator->validateCandidate($candidate, $items)->errors));
++        $items[$id] = $candidate;
++        self::assertStringContainsString($message, implode("\n", $validator->validate($items)->errors));
++    }
++
++    public function testIdentityRejectsTrailingNewlineAndPathSegments(): void
++    {
++        foreach (["T-001\n", '../T-001', 'T-001/other', '', '123', 'T-', 'T-1x'] as $id) {
++            $candidate = $this->make('T-001');
++            $candidate->id = $id;
++            $validator = new StructureValidator();
++            self::assertFalse($validator->validateCandidate($candidate, [])->ok(), $id);
++            self::assertFalse($validator->validate([$candidate])->ok(), $id);
++        }
++    }
++
++    public function testValidHierarchyAndStandaloneGuidance(): void
++    {
++        $items = [
++            $this->make('E-001', Kind::Epic),
++            $this->make('T-001', Kind::Task, 'E-001'),
++            $this->make('S-001', Kind::Subtask, 'T-001', ['T-001']),
++            $this->make('T-002'),
++        ];
++        $result = (new StructureValidator())->validate($items);
++        self::assertSame([], $result->errors);
++        self::assertSame(['T-002: standalone task without standalone_reason.'], $result->warnings);
++        $items[3]->extra['standalone_reason'] = 'Independent maintenance';
++        self::assertSame([], (new StructureValidator())->validate($items)->warnings);
++    }
++
++    public function testCandidateFindsLongCycleDespiteOtherBackEdges(): void
++    {
++        $items = [
++            'T-002' => $this->make('T-002', depends: ['T-003']),
++            'T-003' => $this->make('T-003', depends: ['T-002', 'T-004']),
++            'T-004' => $this->make('T-004', depends: ['T-001']),
++        ];
++        $candidate = $this->make('T-001', depends: ['T-002']);
++        $result = (new StructureValidator())->validateCandidate($candidate, $items);
++        self::assertSame(['Dependency cycle: T-001 -> T-002 -> T-003 -> T-004 -> T-001'], $result->errors);
++    }
++
++    public function testLegacyDefectsIncludingReachableCyclesDoNotGateCandidate(): void
++    {
++        $items = [
++            'S-001' => $this->make('S-001', Kind::Subtask),
++            'T-002' => $this->make('T-002', depends: ['T-003', 'T-999']),
++            'T-003' => $this->make('T-003', depends: ['T-002']),
++        ];
++        $candidate = $this->make('T-001', depends: ['T-002']);
++        $before = serialize([$candidate, $items]);
++        $validator = new StructureValidator();
++
++        self::assertTrue($validator->validateCandidate($candidate, $items)->ok());
++        self::assertSame($before, serialize([$candidate, $items]), 'Pure checks must not repair or mutate records.');
++        $all = $validator->validate($items);
++        self::assertStringContainsString('requires a task parent', implode("\n", $all->errors));
++        self::assertStringContainsString('dependency T-999 does not exist', implode("\n", $all->errors));
++        self::assertStringContainsString('Dependency cycle', implode("\n", $all->errors));
++    }
++
++    public function testParentKindRepairChecksExistingChildren(): void
++    {
++        $items = [
++            'T-001' => $this->make('T-001', Kind::Epic),
++            'T-002' => $this->make('T-002', Kind::Task, 'T-001'),
++        ];
++        $result = (new StructureValidator())->validateCandidate($this->make('T-001'), $items);
++        self::assertSame(['T-002: task parent must be a epic, got task.'], $result->errors);
++    }
++
++    public function testCreatingMissingParentAlsoChecksReverseRelationships(): void
++    {
++        $child = $this->make('S-001', Kind::Subtask, 'E-001');
++        $result = (new StructureValidator())->validateCandidate($this->make('E-001', Kind::Epic), ['S-001' => $child]);
++        self::assertSame(['S-001: subtask parent must be a task, got epic.'], $result->errors);
++    }
++
++    public function testUnchangedParentKindDoesNotGateOnLegacyChildDefect(): void
++    {
++        $items = [
++            'E-001' => $this->make('E-001', Kind::Epic),
++            'S-001' => $this->make('S-001', Kind::Subtask, 'E-001'),
++        ];
++        self::assertTrue((new StructureValidator())->validateCandidate($this->make('E-001', Kind::Epic), $items)->ok());
++    }
++}
+diff --git a/cli/tests/Store/StructureWriteTest.php b/cli/tests/Store/StructureWriteTest.php
+new file mode 100644
+index 0000000..3b888a8
+--- /dev/null
++++ b/cli/tests/Store/StructureWriteTest.php
+@@ -0,0 +1,308 @@
++<?php
++
++declare(strict_types=1);
++
++namespace Workflow\Tests\Store;
++
++use PHPUnit\Framework\Attributes\DataProvider;
++use Workflow\Domain\FrontMatter;
++use Workflow\Domain\InvalidItemException;
++use Workflow\Domain\Item;
++use Workflow\Domain\Kind;
++use Workflow\Domain\WorkflowException;
++use Workflow\Store\ItemStore;
++use Workflow\Tests\WorkflowTestCase;
++use Workflow\Validate\ItemValidator;
++
++final class StructureWriteTest extends WorkflowTestCase
++{
++    private ItemStore $store;
++
++    protected function setUp(): void
++    {
++        parent::setUp();
++        $this->store = new ItemStore($this->root);
++        $this->store->create($this->make('E-001', Kind::Epic));
++        $this->store->create($this->make('T-001', parent: 'E-001'));
++        $this->store->create($this->make('S-001', Kind::Subtask, 'T-001'));
++    }
++
++    private function make(string $id, Kind $kind = Kind::Task, ?string $parent = null, array $depends = []): Item
++    {
++        return Item::fromArray([
++            'id' => $id, 'kind' => $kind->value, 'parent' => $parent, 'depends_on' => $depends,
++        ], "## Plan\n\n## Design\n");
++    }
++
++    /** Explicitly unsafe fixture setup, never a supported write route. */
++    private function writeRaw(Item $item): void
++    {
++        $directory = dirname($this->store->itemPath($item->id));
++        if (!is_dir($directory)) {
++            mkdir($directory, 0777, true);
++        }
++        file_put_contents($directory.'/item.md', FrontMatter::render($item->toArray(), $item->body));
++    }
++
++    private function bytes(): array
++    {
++        $bytes = [];
++        foreach ($this->store->ids() as $id) {
++            $bytes[$id] = file_get_contents($this->store->itemPath($id));
++        }
++
++        return $bytes;
++    }
++
++    public static function invalidWrites(): iterable
++    {
++        $cases = [
++            'kind identity' => [['kind' => Kind::Subtask], 'id does not match kind'],
++            'id identity' => [['id' => 'E-005'], 'id'],
++            'malformed id' => [['id' => '../T-005'], 'id'],
++            'epic parent' => [['kind' => Kind::Epic], 'an epic cannot have a parent'],
++            'task parent task' => [['parent' => 'T-001'], 'task parent must be a epic'],
++            'task parent subtask' => [['parent' => 'S-001'], 'task parent must be a epic'],
++            'missing parent' => [['parent' => 'E-999'], 'parent E-999 does not exist'],
++            'self parent' => [['parent' => 'T-002'], 'own parent'],
++            'self dependency' => [['dependsOn' => ['T-002']], 'depends on itself'],
++            'missing dependency' => [['dependsOn' => ['T-999']], 'dependency T-999 does not exist'],
++            'long cycle' => [['dependsOn' => ['T-003']], 'Dependency cycle'],
++        ];
++        foreach (['create', 'save', 'mutate'] as $route) {
++            foreach ($cases as $name => [$changes, $message]) {
++                yield $route.' '.$name => [$route, $changes, $message];
++            }
++        }
++    }
++
++    #[DataProvider('invalidWrites')]
++    public function testInvalidWritesAreAtomic(string $route, array $changes, string $message): void
++    {
++        $candidate = $this->make('T-002', parent: 'E-001');
++        if ($route !== 'create') {
++            $this->store->create($candidate);
++        }
++        $this->writeRaw($this->make('T-003', depends: ['T-004']));
++        $this->writeRaw($this->make('T-004', depends: ['T-002']));
++        $before = $this->bytes();
++
++        $change = static function (Item $item) use ($changes): void {
++            $item->title = 'Must not persist';
++            foreach ($changes as $field => $value) {
++                $item->{$field} = $value;
++            }
++        };
++        try {
++            if ($route === 'mutate') {
++                $this->store->mutate('T-002', $change);
++            } else {
++                $change($candidate);
++                $this->store->{$route}($candidate);
++            }
++            self::fail('Invalid '.$route.' succeeded.');
++        } catch (InvalidItemException $exception) {
++            self::assertStringContainsString($message, $exception->getMessage());
++        }
++
++        self::assertSame($before, $this->bytes());
++        self::assertSame(array_keys($before), $this->store->ids(), 'No new item directory may remain.');
++    }
++
++    public static function subtaskWrites(): iterable
++    {
++        foreach (['create', 'save', 'mutate'] as $route) {
++            foreach ([null, 'E-001', 'S-001', 'T-999', 'S-002'] as $parent) {
++                yield $route.' '.($parent ?? 'none') => [$route, $parent];
++            }
++        }
++    }
++
++    #[DataProvider('subtaskWrites')]
++    public function testSubtaskParentRulesApplyToEveryRoute(string $route, ?string $parent): void
++    {
++        $candidate = $this->make('S-002', Kind::Subtask, 'T-001');
++        if ($route !== 'create') {
++            $this->store->create($candidate);
++        }
++        $before = $this->bytes();
++        try {
++            if ($route === 'mutate') {
++                $this->store->mutate('S-002', static function (Item $item) use ($parent): void {
++                    $item->parent = $parent;
++                });
++            } else {
++                $candidate->parent = $parent;
++                $this->store->{$route}($candidate);
++            }
++            self::fail('Invalid subtask parent persisted.');
++        } catch (InvalidItemException) {
++            self::assertSame($before, $this->bytes());
++            self::assertSame(array_keys($before), $this->store->ids());
++        }
++    }
++
++    public function testMutateCannotRenameAnItemEvenToAnotherValidId(): void
++    {
++        $before = $this->bytes();
++        try {
++            $this->store->mutate('T-001', static function (Item $item): void {
++                $item->id = 'T-999';
++            });
++            self::fail('Mutation renamed the item.');
++        } catch (InvalidItemException $exception) {
++            self::assertStringContainsString('Cannot change item id', $exception->getMessage());
++        }
++        self::assertSame($before, $this->bytes());
++        self::assertDirectoryDoesNotExist($this->store->itemsDir().'/T-999');
++    }
++
++    public function testSaveCanCreateButCannotBypassStructureChecks(): void
++    {
++        $candidate = $this->make('S-002', Kind::Subtask);
++        try {
++            $this->store->save($candidate);
++            self::fail('Invalid save created an item.');
++        } catch (InvalidItemException) {
++            self::assertDirectoryDoesNotExist($this->store->itemsDir().'/S-002');
++        }
++        $candidate->parent = 'T-001';
++        $this->store->save($candidate);
++        self::assertSame('T-001', $this->store->load('S-002')->parent);
++    }
++
++    public function testKindRepairCannotInvalidateExistingChildren(): void
++    {
++        $this->writeRaw($this->make('T-002', Kind::Epic));
++        $this->writeRaw($this->make('T-003', parent: 'T-002'));
++        $before = $this->bytes();
++        foreach (['save', 'mutate'] as $route) {
++            try {
++                if ($route === 'save') {
++                    $this->store->save($this->make('T-002'));
++                } else {
++                    $this->store->mutate('T-002', static function (Item $item): void {
++                        $item->kind = Kind::Task;
++                    });
++                }
++                self::fail('Kind repair invalidated a child.');
++            } catch (InvalidItemException $exception) {
++                self::assertStringContainsString('T-003: task parent must be a epic, got task.', $exception->getMessage());
++            }
++            self::assertSame($before, $this->bytes());
++        }
++    }
++
++    public function testCreationCannotResolveLegacyParentToWrongKind(): void
++    {
++        $this->writeRaw($this->make('S-002', Kind::Subtask, 'E-002'));
++        $before = $this->bytes();
++        try {
++            $this->store->create($this->make('E-002', Kind::Epic));
++            self::fail('Creation left an affected child with a wrong-kind parent.');
++        } catch (InvalidItemException) {
++            self::assertSame($before, $this->bytes());
++            self::assertDirectoryDoesNotExist($this->store->itemsDir().'/E-002');
++        }
++    }
++
++    public function testKindRepairCanAlsoRepairAnAffectedChild(): void
++    {
++        foreach (['save', 'mutate'] as $route) {
++            $this->writeRaw($this->make('T-002', Kind::Epic));
++            $this->writeRaw($this->make('S-002', Kind::Subtask, 'T-002'));
++            $childBytes = file_get_contents($this->store->itemPath('S-002'));
++            if ($route === 'save') {
++                $this->store->save($this->make('T-002'));
++            } else {
++                $this->store->mutate('T-002', static function (Item $item): void {
++                    $item->kind = Kind::Task;
++                });
++            }
++
++            self::assertSame(Kind::Task, $this->store->load('T-002')->kind);
++            self::assertSame($childBytes, file_get_contents($this->store->itemPath('S-002')));
++            self::assertSame([], (new ItemValidator($this->store))->validate()->errors);
++        }
++    }
++
++    public function testUnrelatedLegacyDefectsDoNotBlockValidWritesOrRepairs(): void
++    {
++        $this->writeRaw($this->make('S-002', Kind::Subtask));
++        $this->writeRaw($this->make('T-002', depends: ['T-003', 'T-999']));
++        $this->writeRaw($this->make('T-003', depends: ['T-002']));
++        mkdir($this->store->itemsDir().'/T-004');
++        file_put_contents($this->store->itemPath('T-004'), "---\nkind: [invalid\n---\n");
++        $legacy = $this->bytes();
++
++        $this->store->create($this->make('T-005', depends: ['T-002']));
++        $valid = $this->store->load('T-005');
++        $valid->title = 'Updated';
++        $this->store->save($valid);
++        self::assertSame('Updated', $this->store->load('T-005')->title);
++        $this->store->mutate('S-002', static function (Item $item): void {
++            $item->parent = 'T-001';
++        });
++        $this->store->mutate('T-002', static function (Item $item): void {
++            $item->dependsOn = [];
++        });
++
++        self::assertSame('T-001', $this->store->load('S-002')->parent);
++        self::assertSame([], $this->store->load('T-002')->dependsOn);
++        foreach (['T-003', 'T-004'] as $id) {
++            self::assertSame($legacy[$id], file_get_contents($this->store->itemPath($id)));
++        }
++        self::assertNotEmpty((new ItemValidator($this->store))->validate()->errors, 'Full validate must still report malformed legacy data.');
++    }
++
++    public function testNoWorkflowGatesAreAdded(): void
++    {
++        $candidate = $this->make('T-002', depends: ['T-001']);
++        $candidate->status = \Workflow\Domain\Status::InProgress;
++        $candidate->phase = \Workflow\Domain\Phase::Verify;
++        $candidate->owns = ['shared/path'];
++        $candidate->artifacts = ['missing.md'];
++        $this->store->create($candidate);
++        $this->store->save($candidate);
++        $this->store->mutate('T-002', static function (Item $item): void {
++            $item->priority = 1;
++        });
++
++        $loaded = $this->store->load('T-002');
++        self::assertNull($loaded->approval);
++        self::assertSame(1, $loaded->priority);
++        self::assertSame('', $loaded->section('Plan'));
++        self::assertSame('', $loaded->section('Design'));
++        $diagnostics = (new ItemValidator($this->store))->validate();
++        self::assertStringContainsString('in-progress without approval', implode("\n", $diagnostics->errors));
++        self::assertStringContainsString('standalone task without standalone_reason', implode("\n", $diagnostics->warnings));
++        self::assertStringContainsString('without a plan', implode("\n", $diagnostics->warnings));
++        self::assertStringContainsString('without a design', implode("\n", $diagnostics->warnings));
++    }
++
++    public function testGraphIsReadAfterMutationInsideWriteLock(): void
++    {
++        $before = file_get_contents($this->store->itemPath('T-001'));
++        try {
++            $this->store->mutate('T-001', function (Item $item): void {
++                // Simulate an affected edge appearing before final validation.
++                $this->writeRaw($this->make('T-002', depends: ['T-001']));
++                $item->dependsOn = ['T-002'];
++            });
++            self::fail('Persist did not check the current graph.');
++        } catch (InvalidItemException $exception) {
++            self::assertStringContainsString('Dependency cycle', $exception->getMessage());
++        }
++        self::assertSame($before, file_get_contents($this->store->itemPath('T-001')));
++
++        $this->store->withLock(function (): void {
++            try {
++                $this->store->save($this->make('T-003'));
++                self::fail('Save bypassed the existing lock.');
++            } catch (WorkflowException $exception) {
++                self::assertStringContainsString('Another workflow write', $exception->getMessage());
++            }
++        });
++        self::assertDirectoryDoesNotExist($this->store->itemsDir().'/T-003');
++    }
++}
+diff --git a/cli/tests/Console/StructureCommandTest.php b/cli/tests/Console/StructureCommandTest.php
+new file mode 100644
+index 0000000..ab3b88a
+--- /dev/null
++++ b/cli/tests/Console/StructureCommandTest.php
+@@ -0,0 +1,134 @@
++<?php
++
++declare(strict_types=1);
++
++namespace Workflow\Tests\Console;
++
++use PHPUnit\Framework\Attributes\DataProvider;
++use Symfony\Component\Console\Input\ArrayInput;
++use Symfony\Component\Console\Output\BufferedOutput;
++use Workflow\Console\Application;
++use Workflow\Domain\FrontMatter;
++use Workflow\Store\ItemStore;
++use Workflow\Tests\WorkflowTestCase;
++
++final class StructureCommandTest extends WorkflowTestCase
++{
++    private ItemStore $store;
++
++    protected function setUp(): void
++    {
++        parent::setUp();
++        self::assertSame(0, $this->runCli(['command' => 'init', '--name' => 'structure'])[0]);
++        self::assertSame(0, $this->runCli(['command' => 'new', 'title' => 'Epic', '--kind' => 'epic'])[0]);
++        self::assertSame(0, $this->runCli(['command' => 'new', 'title' => 'Task', '--parent' => 'E-001'])[0]);
++        self::assertSame(0, $this->runCli(['command' => 'new', 'title' => 'Subtask', '--kind' => 'subtask', '--parent' => 'T-001'])[0]);
++        $this->store = new ItemStore($this->root);
++    }
++
++    /** @return array{int, string} */
++    private function runCli(array $input): array
++    {
++        $application = new Application();
++        $application->setAutoExit(false);
++        $output = new BufferedOutput();
++        $exit = $application->run(new ArrayInput(['--project' => $this->root] + $input), $output);
++
++        return [$exit, $output->fetch()];
++    }
++
++    private function bytes(): array
++    {
++        $bytes = ['board' => file_get_contents($this->root.'/.workflow/board.html')];
++        foreach ($this->store->ids() as $id) {
++            $bytes[$id] = file_get_contents($this->store->itemPath($id));
++        }
++
++        return $bytes;
++    }
++
++    public static function invalidNew(): iterable
++    {
++        yield 'epic parent' => [['--kind' => 'epic', '--parent' => 'E-001'], 'an epic cannot have a parent'];
++        yield 'task parent task' => [['--parent' => 'T-001'], 'task parent must be a epic'];
++        yield 'task parent subtask' => [['--parent' => 'S-001'], 'task parent must be a epic'];
++        yield 'subtask no parent' => [['--kind' => 'subtask'], 'a subtask requires a task parent'];
++        yield 'subtask explicit none' => [['--kind' => 'subtask', '--parent' => 'none'], 'a subtask requires a task parent'];
++        yield 'subtask parent epic' => [['--kind' => 'subtask', '--parent' => 'E-001'], 'subtask parent must be a task'];
++        yield 'subtask parent subtask' => [['--kind' => 'subtask', '--parent' => 'S-001'], 'subtask parent must be a task'];
++        yield 'missing parent' => [['--parent' => 'E-999'], 'parent E-999 does not exist'];
++        yield 'self parent' => [['--parent' => 'T-002'], 'own parent'];
++        yield 'missing dependency' => [['--depends' => ['T-999']], 'dependency T-999 does not exist'];
++        yield 'self dependency' => [['--depends' => ['T-002']], 'depends on itself'];
++    }
++
++    #[DataProvider('invalidNew')]
++    public function testNewRefusesStructureWithoutLeavingAnItem(array $options, string $message): void
++    {
++        $before = $this->bytes();
++        [$exit, $output] = $this->runCli(['command' => 'new', 'title' => 'Invalid'] + $options);
++
++        self::assertSame(2, $exit, $output);
++        self::assertStringContainsString($message, $output);
++        self::assertSame($before, $this->bytes());
++        self::assertSame(['E-001', 'S-001', 'T-001'], $this->store->ids());
++    }
++
++    public static function invalidSet(): iterable
++    {
++        yield 'task parent task' => ['T-001', ['parent=T-002'], 'task parent must be a epic'];
++        yield 'epic parent' => ['E-001', ['parent=T-001'], 'an epic cannot have a parent'];
++        yield 'subtask no parent' => ['S-001', ['parent=none'], 'a subtask requires a task parent'];
++        yield 'subtask parent epic' => ['S-001', ['parent=E-001'], 'subtask parent must be a task'];
++        yield 'missing parent' => ['T-001', ['parent=E-999'], 'parent E-999 does not exist'];
++        yield 'self parent' => ['T-001', ['parent=T-001'], 'own parent'];
++        yield 'missing dependency' => ['T-001', ['depends_on=T-999'], 'dependency T-999 does not exist'];
++        yield 'self dependency' => ['T-001', ['depends_on=T-001'], 'depends on itself'];
++        yield 'long cycle' => ['T-001', ['depends_on=T-003'], 'Dependency cycle'];
++    }
++
++    #[DataProvider('invalidSet')]
++    public function testSetRejectsWholeMultiAssignmentAtomically(string $id, array $assignments, string $message): void
++    {
++        self::assertSame(0, $this->runCli(['command' => 'new', 'title' => 'Second', '--depends' => ['T-001']])[0]);
++        self::assertSame(0, $this->runCli(['command' => 'new', 'title' => 'Third', '--depends' => ['T-002']])[0]);
++        $before = $this->bytes();
++        [$exit, $output] = $this->runCli([
++            'command' => 'set', 'id' => $id,
++            'assignments' => ['title=Must not persist', ...$assignments, 'priority=7'],
++        ]);
++
++        self::assertSame(2, $exit, $output);
++        self::assertStringContainsString($message, $output);
++        self::assertSame($before, $this->bytes());
++    }
++
++    public function testNewDetectsCycleThroughLegacyIncomingReference(): void
++    {
++        // A historical missing reference can become a cycle when its target is created.
++        $legacy = $this->store->load('T-001');
++        $legacy->dependsOn = ['T-002'];
++        file_put_contents($this->store->itemPath('T-001'), FrontMatter::render($legacy->toArray(), $legacy->body));
++        $before = $this->bytes();
++        [$exit, $output] = $this->runCli(['command' => 'new', 'title' => 'Invalid cycle', '--depends' => ['T-001']]);
++
++        self::assertSame(2, $exit, $output);
++        self::assertStringContainsString('Dependency cycle', $output);
++        self::assertSame($before, $this->bytes());
++        self::assertDirectoryDoesNotExist($this->store->itemsDir().'/T-002');
++    }
++
++    public function testStandaloneTaskIsAllowedAndGuidanceRemainsWarningOnly(): void
++    {
++        [$exit, $output] = $this->runCli(['command' => 'new', 'title' => 'Standalone', '--phase' => 'verify']);
++        self::assertSame(0, $exit, $output);
++        [$exit, $output] = $this->runCli(['command' => 'set', 'id' => 'T-002', 'assignments' => ['status=in-progress']]);
++        self::assertSame(0, $exit, $output);
++        [$exit, $output] = $this->runCli(['command' => 'validate']);
++        self::assertSame(1, $exit, $output);
++        self::assertStringContainsString('standalone task without standalone_reason', $output);
++        self::assertStringContainsString('in-progress without approval', $output);
++        self::assertStringContainsString('verify without a plan', $output);
++        self::assertStringContainsString('verify without a design', $output);
++    }
++}

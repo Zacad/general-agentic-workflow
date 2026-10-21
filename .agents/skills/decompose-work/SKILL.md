@@ -5,74 +5,35 @@ description: Split an item into the next useful children only where each part ha
 
 # Decompose work
 
-**Inputs:** the current item, its exploration artifacts, acceptance criteria
-and dependencies; the child paths that will be written.
+**Inputs:** current scope/acceptance, exploration evidence, dependencies and
+candidate owned paths. Follow root `AGENTS.md` for staged approval and sizing
+policy; use this procedure to choose boundaries, not to add process gates.
 
 ## Procedure
 
-1. List plausible boundaries, including **no split**.
-2. A candidate becomes a child only if all hold:
-   - it has its own observable, independently acceptable outcome;
-   - someone could verify it without completing its siblings;
-   - it has its own scope, owned paths and failure boundary.
-   Files, layers, phases or meetings without an independent outcome are not
-   children; they are steps inside one item.
-3. Prefer the smallest child that still has one independently acceptable
-   outcome. Avoid both paragraph-sized fragments and multi-question bundles.
-   A child should be completable in one focused session. If a candidate is
-   still too broad, split again only if the parts meet the same test.
-4. Express ordering with `depends_on`, not with a new hierarchy level.
-5. Draft each child with outcome, scope, acceptance criteria, dependencies and
-   owned paths. Do not approve them; present their exact IDs and revisions.
-6. Record the decomposition rationale: why these items, why this granularity,
-   and why subtasks were or were not used. An unexplained flat list is not a
-   rationale.
-7. Record a deferred or blocked part with its reason and the trigger that
-   would revisit it. Unexplored is not deferred.
-
-## Research-heavy work
-
-Research is not the same as implementation. For multi-dimensional work, frame
-a **discovery/design task** under the epic before creating the implementation
-children. It explores the space and produces a scope map: dimensions, candidate
-items, acceptance criteria, dependencies, coverage and unknowns. Frame the
-children from that map, then review their exact records. Exploration that
-arrives after the decomposition cannot change it.
-
-When an item needs evidence before it can be written, split the evidence into
-**explorer questions** before splitting the deliverable:
-
-- one explorer answers one independent dimension (route, base, access,
-  heritage, practicalities, prior art, feasibility);
-- each writes one focused artifact under `items/<id>/outputs/`;
-- a worker then synthesizes the deliverable from the plan and those artifacts;
-- the worker does not repeat the research, only checks a specific fact the
-  plan or a criterion requires.
-
-Use a **subtask** when the part has its own independently acceptable outcome
-and its own path. Use an **explorer** when the part is evidence for one
-deliverable. Do not create two writers for the same file.
-
-## Sizing check
-
-A task is too broad for one worker when any of these is true:
-
-- it needs more than one independent research pass, or more than about three
-  independent questions;
-- it produces more than one deliverable or an artifact above about 2,000
-  words;
-- an explorer would need more than about ten searches;
-- a worker would need dozens of edits or a second full draft;
-- the plan or design cannot name a single artifact outline and a small set of
-  checks.
-
-Split by dimension or deliverable. If the pieces would all write the same
-file, keep one writer and add explorer questions instead. These are steering
-thresholds, not gates: a broad item is allowed when the reason is explicit.
+1. Compare plausible boundaries, including **no split**. A child needs an
+   observable outcome that can be accepted/rejected without finishing siblings,
+   its own scope/path and a meaningful failure boundary. Files, phases and
+   meetings are not independently useful outcomes by themselves.
+2. Separate missing evidence from deliverables. Assign one bounded explorer
+   question per independent dimension, with sources, stop condition and a
+   repository-relative `.workflow/items/<ID>/outputs/` target. Discovery may run
+   on the epic; propose a discovery child only if its answer is useful as its
+   own deliverable. Do not invent children merely to host role runs.
+3. From evidence, place the scope map in **epic Design only**: candidate children,
+   acceptance coverage, dependencies, ownership, integration and unknowns.
+   Child designs reference that map and add only local decisions/checks.
+4. Draft the next useful children and use `depends_on` for ordering. Choose
+   subtasks only for independently acceptable parts under a task; otherwise
+   retain one deliverable and one writer, adding evidence questions as needed.
+5. Record why these boundaries and sizes beat the alternatives, why subtasks
+   were/weren't useful, and explicit triggers for deferred work. Unexplored is
+   not deferred. Apply AGENTS' sizing signals as judgment, not hard thresholds.
+6. Present exact new child records after evidence. Later evidence may revise
+   the map; identify affected scope changes for review without reapproving
+   unchanged records. Do not rewrite completed history to fit a new map.
 
 ## Output
 
-The next useful child items, their dependency order, a short sizing and
-decomposition rationale, and the role split: which questions go to
-explorers, which deliverable goes to a worker, what the design owns, and what
-is verified.
+One parent Design scope map and exact proposed children, with coverage,
+dependency order, decomposition rationale and bounded role assignments.

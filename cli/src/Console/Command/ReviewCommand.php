@@ -6,10 +6,11 @@ namespace Workflow\Console\Command;
 
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Workflow\Domain\Item;
 use Workflow\Domain\Kind;
-use Workflow\Support\Text;
+use Workflow\Support\ScopeOutput;
 
 final class ReviewCommand extends BaseCommand
 {
@@ -21,7 +22,8 @@ final class ReviewCommand extends BaseCommand
     protected function configure(): void
     {
         $this->setDescription('Print the exact scope and decomposition packet for an epic and its descendants.')
-            ->addArgument('id', InputArgument::REQUIRED, 'Epic item ID.');
+            ->addArgument('id', InputArgument::REQUIRED, 'Epic item ID.')
+            ->addOption('json', null, InputOption::VALUE_NONE, 'Emit JSON.');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -36,9 +38,6 @@ final class ReviewCommand extends BaseCommand
             return self::INVALID;
         }
 
-        $output->writeln(sprintf('%s · %s', $epic->id, $epic->title));
-        $this->printItem($epic, $output);
-
         $children = [];
         foreach ($items as $item) {
             if ($item->parent !== null) {
@@ -50,24 +49,11 @@ final class ReviewCommand extends BaseCommand
         }
         unset($group);
 
-        $output->writeln('');
-        $output->writeln('## Decomposition');
-        if (!isset($children[$epic->id])) {
-            $output->writeln('(no child items)');
-        } else {
-            $this->printTree($children[$epic->id], $children, $output, 0);
-        }
-
-        $treeIds = [];
-        $this->collectIds($epic->id, $children, $treeIds);
-
+        $descendants = $this->descendants($epic->id, $children);
         $tasks = 0;
         $subtasks = 0;
         $open = 0;
-        foreach ($items as $item) {
-            if (!in_array($item->id, $treeIds, true)) {
-                continue;
-            }
+        foreach ($descendants as $item) {
             if ($item->kind === Kind::Task) {
                 $tasks++;
             } elseif ($item->kind === Kind::Subtask) {
@@ -75,6 +61,34 @@ final class ReviewCommand extends BaseCommand
             }
             if ($item->status->isOpen()) {
                 $open++;
+            }
+        }
+
+        $packet = [
+            'epic' => $this->packet($epic),
+            'descendants' => array_map($this->packet(...), $descendants),
+            'counts' => ['tasks' => $tasks, 'subtasks' => $subtasks, 'open' => $open],
+        ];
+        if ($input->getOption('json')) {
+            $this->writeJson($output, $packet);
+
+            return self::SUCCESS;
+        }
+
+        $output->writeln(sprintf('%s · %s', $epic->id, ScopeOutput::literal($epic->title)), OutputInterface::OUTPUT_RAW);
+        $this->printItem($packet['epic'], $output);
+        $output->writeln('');
+        $output->writeln('## Decomposition');
+        if ($packet['descendants'] === []) {
+            $output->writeln('(no child items)');
+        } else {
+            $depths = [$epic->id => 0];
+            foreach ($packet['descendants'] as $item) {
+                $depth = $depths[$item['parent']];
+                $indent = str_repeat('  ', $depth);
+                $output->writeln(sprintf('%s- %s · %s', $indent, $item['id'], ScopeOutput::literal($item['title'])), OutputInterface::OUTPUT_RAW);
+                $this->printItem($item, $output, $indent.'  ');
+                $depths[$item['id']] = $depth + 1;
             }
         }
 
@@ -91,78 +105,69 @@ final class ReviewCommand extends BaseCommand
 
     /**
      * @param array<string, list<Item>> $children
-     * @param list<string>              $ids
+     *
+     * @return list<Item>
      */
-    private function collectIds(string $id, array $children, array &$ids): void
+    private function descendants(string $id, array $children): array
     {
+        $items = [];
         foreach ($children[$id] ?? [] as $child) {
-            $ids[] = $child->id;
-            $this->collectIds($child->id, $children, $ids);
+            $items[] = $child;
+            array_push($items, ...$this->descendants($child->id, $children));
         }
+
+        return $items;
     }
 
     /**
-     * @param list<Item>                $items
-     * @param array<string, list<Item>> $children
+     * @return array<string, mixed>
      */
-    private function printTree(array $items, array $children, OutputInterface $output, int $depth): void
+    private function packet(Item $item): array
     {
-        $indent = str_repeat('  ', $depth);
-        foreach ($items as $item) {
-            $output->writeln(sprintf('%s- %s · %s', $indent, $item->id, $item->title));
-            $this->printItem($item, $output, $indent.'  ');
-
-            if (isset($children[$item->id])) {
-                $this->printTree($children[$item->id], $children, $output, $depth + 1);
-            }
-        }
+        return [
+            'id' => $item->id,
+            ...ScopeOutput::scope($item),
+            'owns' => $item->owns,
+            'status' => $item->status->value,
+            'phase' => $item->phase->value,
+            'scope_hash' => $item->scopeHash(),
+            'approval' => $item->approval?->toArray(),
+            'approval_state' => $this->approvalLabel($item),
+            'plan' => $item->section('Plan'),
+            'design' => $item->section('Design'),
+        ];
     }
 
-    private function printItem(Item $item, OutputInterface $output, string $indent = ''): void
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function printItem(array $item, OutputInterface $output, string $indent = ''): void
     {
+        ScopeOutput::write($output, $item, $item['owns'], $indent);
         $output->writeln(sprintf(
-            '%skind: %s · status: %s · phase: %s · parent: %s · approval: %s',
+            '%sstatus: %s · phase: %s · approval: %s',
             $indent,
-            $item->kind->value,
-            $item->status->value,
-            $item->phase->value,
-            $item->parent ?? 'none',
-            $this->approvalLabel($item),
-        ));
-        $output->writeln($indent.'outcome: '.($item->outcome !== '' ? $item->outcome : '(not set)'));
-        $output->writeln($indent.'scope in: '.Text::inlineList($item->scopeIn));
-        $output->writeln($indent.'scope out: '.Text::inlineList($item->scopeOut));
-
-        if ($item->acceptance === []) {
-            $output->writeln($indent.'acceptance: (not set)');
-        } else {
-            $output->writeln($indent.'acceptance:');
-            foreach ($item->acceptance as $index => $criterion) {
-                $output->writeln(sprintf('%s  %d. %s', $indent, $index + 1, $criterion));
-            }
-        }
-
-        $output->writeln(sprintf(
-            '%sdepends: %s · owns: %s',
-            $indent,
-            Text::inlineList($item->dependsOn),
-            Text::inlineList($item->owns),
-        ));
+            $item['status'],
+            $item['phase'],
+            ScopeOutput::literal($item['approval_state']),
+        ), OutputInterface::OUTPUT_RAW);
+        $output->writeln($indent.'hash: '.$item['scope_hash']);
+        $output->writeln($indent.'approval record: '.ScopeOutput::literal($item['approval']), OutputInterface::OUTPUT_RAW);
         $output->writeln(sprintf(
             '%splan: %s · design: %s',
             $indent,
-            trim($item->section('Plan')) !== '' ? 'written' : 'missing',
-            trim($item->section('Design')) !== '' ? 'written' : 'missing',
+            $item['plan'] !== '' ? 'written' : 'missing',
+            $item['design'] !== '' ? 'written' : 'missing',
         ));
 
-        foreach (['Plan', 'Design'] as $section) {
-            $text = trim($item->section($section));
+        foreach (['plan', 'design'] as $section) {
+            $text = $item[$section];
             if ($text === '') {
                 continue;
             }
-            $output->writeln($indent.strtolower($section).':');
+            $output->writeln($indent.$section.':');
             foreach (preg_split('/\R/u', $text) ?: [] as $line) {
-                $output->writeln($indent.'  '.$line);
+                $output->writeln($indent.'  '.$line, OutputInterface::OUTPUT_RAW);
             }
         }
     }

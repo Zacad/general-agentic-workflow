@@ -8,6 +8,7 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Workflow\Domain\WorkflowException;
 use Workflow\Support\Clock;
 
 final class ResultCommand extends BaseCommand
@@ -71,27 +72,24 @@ final class ResultCommand extends BaseCommand
         $at = Clock::now();
 
         $store = $this->store($input);
-        $store->mutate((string) $input->getArgument('id'), function ($item) use ($store, $at, $role, $status, $finding, $artifacts, $decision, $next): void {
-            $entry = sprintf("- %s · %s · %s\n", $at, $role, $status)
-                .'  Finding: '.$finding."\n"
-                .'  Artifacts: '.($artifacts !== [] ? implode(', ', $artifacts) : 'none')."\n"
-                .'  Decision: '.($decision !== '' ? $decision : 'none')."\n"
-                .'  Next: '.($next !== '' ? $next : 'none');
-            $store->appendProgress($item, $entry);
-
-            $item->lastResult = [
+        $entry = sprintf("- %s · %s · %s\n", $at, $role, $status)
+            .'  Finding: '.$finding."\n"
+            .'  Artifacts: '.($artifacts !== [] ? implode(', ', $artifacts) : 'none')."\n"
+            .'  Decision: '.($decision !== '' ? $decision : 'none')."\n"
+            .'  Next: '.($next !== '' ? $next : 'none');
+        try {
+            $store->recordReceipt((string) $input->getArgument('id'), [
                 'at' => $at,
                 'role' => $role,
                 'status' => $status,
                 'finding' => $finding,
                 'decision' => $decision !== '' ? $decision : null,
-            ];
-            $item->addArtifacts($artifacts);
+            ], $artifacts, $entry);
+        } catch (WorkflowException $exception) {
+            $output->writeln('<error>'.$exception->getMessage().'</error>');
 
-            if ($role === 'verifier' && $status === 'done') {
-                $item->verifiedAt = $at;
-            }
-        });
+            return self::FAILURE;
+        }
 
         if ($input->getOption('json')) {
             $this->writeJson($output, ['id' => $input->getArgument('id'), 'role' => $role, 'status' => $status, 'at' => $at]);

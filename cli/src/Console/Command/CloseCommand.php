@@ -8,7 +8,6 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
-use Workflow\Domain\Item;
 use Workflow\Domain\Status;
 use Workflow\Domain\WorkflowException;
 use Workflow\Support\Clock;
@@ -46,24 +45,7 @@ final class CloseCommand extends BaseCommand
         $force = (bool) $input->getOption('force');
 
         try {
-            $result = $store->mutate($id, function (Item $item) use ($store, $status, $reason, $at, $force): array {
-                if ($status === Status::Done && $item->verifiedAt === null && !$force) {
-                    throw new WorkflowException(sprintf(
-                        '%s: no verifier receipt; record one with "workflow result %s --role verifier ..." or pass --force.',
-                        $item->id,
-                        $item->id,
-                    ));
-                }
-
-                $item->status = $status;
-                $entry = sprintf('- %s · closed as %s', $at, $status->value);
-                if ($reason !== '') {
-                    $entry .= "\n  Reason: ".$reason;
-                }
-                $store->appendProgress($item, $entry);
-
-                return ['verified' => $item->verifiedAt !== null];
-            });
+            $verified = $store->close($id, $status, $reason, $at, $force);
         } catch (WorkflowException $exception) {
             $output->writeln('<error>'.$exception->getMessage().'</error>');
 
@@ -73,7 +55,7 @@ final class CloseCommand extends BaseCommand
         $this->refreshBoard($input, $output);
 
         if ($input->getOption('json')) {
-            $this->writeJson($output, ['id' => $id, 'status' => $status->value, 'verified' => $result['verified']]);
+            $this->writeJson($output, ['id' => $id, 'status' => $status->value, 'verified' => $verified]);
 
             return self::SUCCESS;
         }
@@ -82,10 +64,21 @@ final class CloseCommand extends BaseCommand
 
         $store = $this->store($input);
         $openChildren = [];
-        foreach ($store->all() as $candidate) {
+        $uncheckedChildren = false;
+        foreach ($store->ids() as $candidateId) {
+            try {
+                $candidate = $store->load($candidateId);
+            } catch (WorkflowException) {
+                $uncheckedChildren = true;
+                continue;
+            }
             if ($candidate->parent === $id && $candidate->status->isOpen()) {
                 $openChildren[] = $candidate->id;
             }
+        }
+
+        if ($uncheckedChildren) {
+            $output->writeln('<comment>warning: child status was not fully checked because some legacy records could not be loaded; run "workflow validate".</comment>');
         }
 
         if ($openChildren !== []) {
@@ -95,12 +88,13 @@ final class CloseCommand extends BaseCommand
             ));
         }
 
-        if ($status === Status::Done && !$result['verified']) {
-            $output->writeln('<comment>warning: closed done without a verifier receipt (forced).</comment>');
+        if ($status === Status::Done && !$verified) {
+            $detail = $force ? 'forced' : 'existing completed history; no new verification';
+            $output->writeln('<comment>warning: closed done without a current verifier receipt ('.$detail.').</comment>');
         }
 
         if ($status === Status::Done && trim($store->load($id)->section('Design')) === '') {
-            $output->writeln('<comment>warning: closed done without a design; run "workflow design '.$id.'".</comment>');
+            $output->writeln('<comment>warning: closed done without a design; create a new follow-up item if material work is needed.</comment>');
         }
 
         if ($status === Status::Cancelled && $reason === '') {

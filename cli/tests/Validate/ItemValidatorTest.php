@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Workflow\Tests\Validate;
 
 use Workflow\Domain\Approval;
+use Workflow\Domain\FrontMatter;
 use Workflow\Domain\Item;
 use Workflow\Domain\Kind;
 use Workflow\Domain\Phase;
@@ -55,6 +56,16 @@ final class ItemValidatorTest extends WorkflowTestCase
         return $item;
     }
 
+    /** Deliberately bypass supported writes to exercise legacy diagnostics. */
+    private function writeRaw(Item $item): void
+    {
+        $directory = dirname($this->store->itemPath($item->id));
+        if (!is_dir($directory)) {
+            mkdir($directory, 0777, true);
+        }
+        file_put_contents($directory.'/item.md', FrontMatter::render($item->toArray(), $item->body));
+    }
+
     public function testValidProjectPasses(): void
     {
         $this->store->create($this->make('E-001', Kind::Epic));
@@ -72,8 +83,8 @@ final class ItemValidatorTest extends WorkflowTestCase
         $first->dependsOn = ['T-002'];
         $second = $this->make('T-002', Kind::Task);
         $second->dependsOn = ['T-001'];
-        $this->store->create($first);
-        $this->store->create($second);
+        $this->writeRaw($first);
+        $this->writeRaw($second);
 
         $result = (new ItemValidator($this->store))->validate();
 
@@ -84,11 +95,38 @@ final class ItemValidatorTest extends WorkflowTestCase
     public function testBadParentKindIsDetected(): void
     {
         $this->store->create($this->make('E-001', Kind::Epic));
-        $this->store->create($this->make('S-001', Kind::Subtask, 'E-001'));
+        $this->writeRaw($this->make('S-001', Kind::Subtask, 'E-001'));
 
         $result = (new ItemValidator($this->store))->validate();
 
         self::assertStringContainsString('subtask parent must be a task', implode("\n", $result->errors));
+    }
+
+    public function testFullDiagnosticsStillReportRawLegacyStructure(): void
+    {
+        $this->writeRaw($this->make('T-001', Kind::Epic, 'E-999'));
+        $this->writeRaw($this->make('S-001', Kind::Subtask));
+        $missing = $this->make('T-002', Kind::Task, 'E-999');
+        $missing->dependsOn = ['T-999', 'T-002'];
+        $this->writeRaw($missing);
+        $self = $this->make('T-003', Kind::Task, 'T-003');
+        $this->writeRaw($self);
+
+        $result = (new ItemValidator($this->store))->validate();
+        $errors = implode("\n", $result->errors);
+        foreach (['id does not match kind epic', 'an epic cannot have a parent', 'a subtask requires a task parent',
+            'parent E-999 does not exist', 'dependency T-999 does not exist', 'depends on itself', 'own parent'] as $message) {
+            self::assertStringContainsString($message, $errors);
+        }
+    }
+
+    public function testStandaloneTaskReasonIsStillOnlyGuidance(): void
+    {
+        $this->store->create($this->make('T-001', Kind::Task));
+        $result = (new ItemValidator($this->store))->validate();
+
+        self::assertSame([], $result->errors);
+        self::assertStringContainsString('standalone task without standalone_reason', implode("\n", $result->warnings));
     }
 
     public function testStaleApprovalIsDetected(): void

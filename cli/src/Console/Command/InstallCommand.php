@@ -33,7 +33,7 @@ final class InstallCommand extends BaseCommand
         $this->setDescription('Copy the workflow kit into a target project and initialize it.')
             ->addArgument('target', InputArgument::REQUIRED, 'Target project directory.')
             ->addOption('name', null, InputOption::VALUE_REQUIRED, 'Project name for the templates.')
-            ->addOption('force', null, InputOption::VALUE_NONE, 'Overwrite existing files.');
+            ->addOption('force', null, InputOption::VALUE_NONE, 'Refresh ordinary kit files; preserve root documents and workflow records.');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -50,8 +50,13 @@ final class InstallCommand extends BaseCommand
             $target = (getcwd() ?: '.').'/'.$target;
         }
 
-        $existing = realpath($target);
-        $targetPath = $existing !== false ? $existing : $this->normalize($target);
+        try {
+            $targetPath = $this->resolveTarget($target);
+        } catch (\RuntimeException $exception) {
+            $output->writeln('<error>'.$exception->getMessage().'</error>');
+
+            return self::INVALID;
+        }
 
         if ($targetPath === $kitRoot) {
             $output->writeln('<error>Target is the kit root; choose another directory.</error>');
@@ -59,13 +64,13 @@ final class InstallCommand extends BaseCommand
             return self::INVALID;
         }
 
-        if (str_starts_with($targetPath.'/', $kitRoot.'/')) {
+        if ($this->contains($kitRoot, $targetPath)) {
             $output->writeln('<error>Target must be outside the kit root.</error>');
 
             return self::INVALID;
         }
 
-        if (str_starts_with($kitRoot.'/', $targetPath.'/')) {
+        if ($this->contains($targetPath, $kitRoot)) {
             $output->writeln('<error>Target cannot be a parent of the kit root.</error>');
 
             return self::INVALID;
@@ -83,15 +88,12 @@ final class InstallCommand extends BaseCommand
 
         foreach (['AGENTS.md', 'README.md', 'LICENSE'] as $file) {
             $source = $kitRoot.'/'.$file;
-            if (!is_file($source)) {
-                continue;
-            }
-            $this->copyFile($source, $targetPath.'/'.$file, $force, $copied, $skipped);
+            $this->copyFile($source, $targetPath.'/'.$file, false, $copied, $skipped);
         }
 
         foreach (['.agents', 'docs', 'cli'] as $directory) {
             $source = $kitRoot.'/'.$directory;
-            if (is_dir($source)) {
+            if (is_link($source) || is_dir($source)) {
                 $this->copyTree($source, $targetPath.'/'.$directory, $force, $copied, $skipped);
             }
         }
@@ -100,7 +102,7 @@ final class InstallCommand extends BaseCommand
         $created = $initializer->initialize($targetPath, $input->getOption('name'));
 
         $output->writeln(sprintf('Installed into %s', $targetPath));
-        $output->writeln(sprintf('  copied %d files, skipped %d existing files', count($copied), count($skipped)));
+        $output->writeln(sprintf('  copied %d files, skipped %d existing files or unsafe paths', count($copied), count($skipped)));
         foreach ($created as $path) {
             $output->writeln('  created '.$path);
         }
@@ -113,13 +115,16 @@ final class InstallCommand extends BaseCommand
         }
 
         $workflowBin = $targetPath.'/cli/bin/workflow';
-        if (is_file($workflowBin)) {
+        if (in_array($workflowBin, $copied, true)) {
             @chmod($workflowBin, 0755);
         }
 
         $output->writeln('');
         $output->writeln('Next:');
-        $output->writeln('  cd '.$targetPath.'/cli && composer install');
+        $output->writeln('  Scaffold only: review skipped paths; no automatic merges or deletions.');
+        $output->writeln('  Manually merge the kit AGENTS.md rules into preserved host instructions.');
+        $output->writeln('  Existing root documents, host configuration and workflow records are never merged or replaced.');
+        $output->writeln('  cd '.$targetPath.'/cli && composer install --no-dev');
         $output->writeln('  '.$targetPath.'/cli/bin/workflow --project '.$targetPath.' validate');
 
         return self::SUCCESS;
@@ -127,48 +132,36 @@ final class InstallCommand extends BaseCommand
 
     private function copyTree(string $source, string $target, bool $force, array &$copied, array &$skipped): void
     {
-        $source = rtrim($source, '/');
-        $target = rtrim($target, '/');
+        if (is_link($source) || is_link($target) || (file_exists($target) && !is_dir($target))) {
+            $skipped[] = $target;
 
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveCallbackFilterIterator(
-                new \RecursiveDirectoryIterator($source, \FilesystemIterator::SKIP_DOTS),
-                function (\SplFileInfo $file) use ($source): bool {
-                    $relative = ltrim(substr($file->getPathname(), strlen($source)), '/');
-                    if (rtrim($relative, '/') === '.workflow' || str_starts_with($relative, '.workflow/')) {
-                        return false;
-                    }
-                    foreach (self::SKIP as $skip) {
-                        if ($relative === $skip || str_starts_with($relative, $skip.'/')) {
-                            return false;
-                        }
-                    }
+            return;
+        }
 
-                    return true;
-                },
-            ),
-            \RecursiveIteratorIterator::SELF_FIRST,
-        );
+        if (!is_dir($target) && !mkdir($target, 0777, true) && !is_dir($target)) {
+            throw new \RuntimeException(sprintf('Cannot create directory: %s', $target));
+        }
 
-        foreach ($iterator as $file) {
+        foreach (new \FilesystemIterator($source, \FilesystemIterator::SKIP_DOTS) as $file) {
             /** @var \SplFileInfo $file */
-            $relative = ltrim(substr($file->getPathname(), strlen($source)), '/');
-            $destination = $target.'/'.$relative;
-
-            if ($file->isDir()) {
-                if (!is_dir($destination) && !mkdir($destination, 0777, true) && !is_dir($destination)) {
-                    throw new \RuntimeException(sprintf('Cannot create directory: %s', $destination));
-                }
+            if (in_array($file->getFilename(), self::SKIP, true)) {
                 continue;
             }
 
-            $this->copyFile($file->getPathname(), $destination, $force, $copied, $skipped);
+            $destination = $target.'/'.$file->getFilename();
+            if (!$file->isLink() && $file->isDir()) {
+                $this->copyTree($file->getPathname(), $destination, $force, $copied, $skipped);
+            } else {
+                $this->copyFile($file->getPathname(), $destination, $force, $copied, $skipped);
+            }
         }
     }
 
     private function copyFile(string $source, string $destination, bool $force, array &$copied, array &$skipped): void
     {
-        if (is_file($destination) && !$force) {
+        $force = $force && basename($destination) !== '.gitignore';
+        if (is_link($source) || !is_file($source) || is_link($destination)
+            || (file_exists($destination) && (!is_file($destination) || !$force))) {
             $skipped[] = $destination;
             return;
         }
@@ -185,20 +178,37 @@ final class InstallCommand extends BaseCommand
         $copied[] = $destination;
     }
 
-    private function normalize(string $path): string
+    private function contains(string $parent, string $path): bool
     {
-        $parts = [];
+        return $path === $parent || str_starts_with($path, rtrim($parent, '/').'/');
+    }
+
+    private function resolveTarget(string $path): string
+    {
+        $resolved = '/';
         foreach (explode('/', $path) as $part) {
             if ($part === '' || $part === '.') {
                 continue;
             }
             if ($part === '..') {
-                array_pop($parts);
+                $resolved = dirname($resolved);
                 continue;
             }
-            $parts[] = $part;
+
+            $candidate = rtrim($resolved, '/').'/'.$part;
+            if (is_link($candidate) || file_exists($candidate)) {
+                // Resolve this component before a following '..': a symlink's
+                // physical parent is not necessarily its lexical parent.
+                $existing = realpath($candidate);
+                if ($existing === false || !is_dir($existing)) {
+                    throw new \RuntimeException(sprintf('Target component is dangling or not a directory: %s', $candidate));
+                }
+                $resolved = $existing;
+            } else {
+                $resolved = $candidate;
+            }
         }
 
-        return '/'.implode('/', $parts);
+        return $resolved;
     }
 }

@@ -12,6 +12,7 @@ use Workflow\Domain\Item;
 use Workflow\Domain\Kind;
 use Workflow\Domain\Phase;
 use Workflow\Domain\Status;
+use Workflow\Domain\WorkflowException;
 use Workflow\Support\Clock;
 
 final class NewCommand extends BaseCommand
@@ -59,20 +60,7 @@ final class NewCommand extends BaseCommand
             $parent = null;
         }
 
-        if ($parent !== null && !$store->exists($parent)) {
-            $output->writeln(sprintf('<error>Parent does not exist: %s</error>', $parent));
-
-            return self::INVALID;
-        }
-
         $depends = array_values(array_filter(array_map('trim', $input->getOption('depends'))));
-        foreach ($depends as $dependency) {
-            if (!$store->exists($dependency)) {
-                $output->writeln(sprintf('<error>Dependency does not exist: %s</error>', $dependency));
-
-                return self::INVALID;
-            }
-        }
 
         $now = Clock::now();
         $body = "## Plan\n\n## Design\n\n## Progress\n";
@@ -105,7 +93,13 @@ final class NewCommand extends BaseCommand
             $item->extra['standalone_reason'] = $standaloneReason;
         }
 
-        $store->create($item);
+        try {
+            $store->create($item);
+        } catch (WorkflowException $exception) {
+            $output->writeln('<error>'.$exception->getMessage().'</error>');
+
+            return self::INVALID;
+        }
         $this->refreshBoard($input, $output);
 
         if ($input->getOption('json')) {

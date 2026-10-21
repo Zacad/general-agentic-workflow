@@ -1,246 +1,139 @@
 # General Agentic Workflow — architecture
 
-## Overview
+## Shape and boundaries
 
-A microkernel with one storage rule: **Markdown is truth.** The kit is a short
-protocol, four roles and ten skills. A project-local PHP/Symfony CLI reads and
-writes the records, computes readiness, validates integrity and renders a
-static board. There is no database, daemon or server.
+Markdown is truth. A project-local Symfony Console application reads records,
+projects role-safe views, serializes mutations and generates a static board.
+Root `AGENTS.md` owns operating rules; roles define responsibilities, skills
+provide methods, and README/install docs introduce executable use. There is no
+second canonical protocol or default mandatory artifact.
 
-```
-AGENTS.md ─────────────── principles and the loop
-.agents/roles/ ────────── who does what
-.agents/skills/ ───────── how to do a kind of work
-cli/ ──────────────────── projections, writes, validation
-.workflow/ ────────────── durable records
-```
+Key source locations (relative to the repository root):
 
-## Components
+| Component | Source |
+| --- | --- |
+| Application/commands | `cli/src/Console/Application.php`, `cli/src/Console/Command/` |
+| Typed item, enums, approval | `cli/src/Domain/Item.php`, `cli/src/Domain/` |
+| YAML framing | `cli/src/Domain/FrontMatter.php` |
+| Completion/invalidation policy | `cli/src/Domain/ItemLifecycle.php` |
+| Persistence/project discovery | `cli/src/Store/ItemStore.php`, `cli/src/Store/Project.php` |
+| Candidate graph/full diagnostics | `cli/src/Validate/StructureValidator.php`, `cli/src/Validate/ItemValidator.php` |
+| Coordination projection | `cli/src/Read/ProjectView.php` |
+| Exact scope presentation | `cli/src/Support/ScopeOutput.php` |
+| Derived board | `cli/src/Board/BoardRenderer.php`, `cli/src/Board/BoardWriter.php` |
+| Scaffold initialization | `cli/src/Store/ProjectInitializer.php`, `cli/templates/` |
 
-### Kit
+There is no separate Receipt persistence layer: ResultCommand builds the receipt
+and ItemStore appends it to Progress while updating typed result/artifact fields.
 
-- `AGENTS.md`: hierarchy, phases, delegation, receipt contract, approval rule,
-  context discipline. Deliberately short.
-- `.agents/roles/`: `orchestrator`, `explorer`, `worker`, `verifier`.
-- `.agents/skills/`: ten methods, each a single `SKILL.md`.
-- `docs/install.md`: installation and update.
+## Storage and write boundary
 
-### CLI
+Project documents are `.workflow/PRD.md` and `Architecture.md`. Each item has
+`items/<ID>/item.md` and optional `outputs/`; board and `.locks/` are derived/
+transient. IDs use E/T/S prefixes allocated by scanning existing item directories.
+YAML carries identity, hierarchy, status, phase, priority, dependencies, ownership,
+artifacts, approval, result/verification timestamps, outcome, scope and acceptance.
+Markdown carries Plan, Design, Decisions and Progress.
 
-A Symfony Console application. No DI container, no bundles, no HTTP kernel.
-Components: `console`, `yaml`, `filesystem`, `finder`, `lock`.
+FrontMatter uses Symfony YAML with empty-sequence dump flags rather than scalar
+rewriting. Parse framing retains the YAML boundary newline; the closing delimiter
+is separated without trimming scalar data. Unknown keys survive; existing typed
+list normalization and Markdown-body normalization are separate contracts.
 
-```
-cli/
-  bin/workflow
-  composer.json
-  src/
-    Console/           Application + one class per command
-    Domain/            Item, enums, Approval, FrontMatter, exceptions
-    Store/             ItemStore, Project, atomic writes, lock
-    Validate/          ItemValidator
-    Board/             BoardRenderer
-    Receipt/           Receipt formatting
-  templates/           PRD.md, Architecture.md
-  tests/
-```
+Create/save/mutate share a locked persistence boundary. Pure StructureValidator
+checks the candidate and affected parent/dependency graph before writing, without
+turning unrelated legacy diagnostics into a global mutation gate. ItemValidator
+adds whole-project diagnostics: approval, layout, artifacts, ownership and advisory
+Plan/Design warnings. Structural checks are not a mandatory process state machine.
 
-### Records
+An item write holds a Symfony FlockStore project lock, serializes to a same-directory
+temporary file, flushes/fsyncs and renames it over the record. Readers see old or
+new bytes, not partial serialization. Derived board refresh is separate from item
+persistence; it is rebuildable, not a multi-file transaction or recovery journal.
 
-```
-.workflow/
-  PRD.md
-  Architecture.md
-  board.html              generated, ignored by git
-  .locks/                 transient lock files, ignored by git
-  items/<ID>/
-    item.md
-    outputs/              only when a real deliverable exists
-```
+## Approval versus verification
 
-## Item model
+Item::scopeHash is SHA-256 of canonical JSON over kind, parent, title, outcome,
+scope in/out, acceptance and dependencies. Scope lists/dependencies are deduplicated
+and sorted; acceptance order is preserved. Approval stores actor/time/hash.
+Status, phase, priority, ownership, narrative, artifacts and receipts do not affect
+scope approval. Stale approval is diagnosed and withheld from ready projections.
 
-Front matter (state):
+ScopeOutput shares an exact projection/literal renderer between ReviewCommand and
+ApproveCommand. Approve captures displayed values and hash in the same locked
+mutation; review includes descendants and full Plan/Design. Empty/list/multiline/
+tag values remain distinguishable. JSON writes bypass Console formatting.
 
-```yaml
-id: T-012
-kind: task                # epic | task | subtask
-parent: E-001
-title: Parse front matter
-status: todo              # draft | todo | in-progress | done | cancelled
-phase: plan               # plan | explore | design | implement | verify
-priority: 2
-depends_on: [T-010]
-owns: [cli/src/Store/]
-artifacts: []
-approval:
-  at: 2026-10-19T10:00:00+00:00
-  by: adam
-  scope_hash: <sha256>
-last_result: null         # {at, role, status, finding}
-verified_at: null
-created: 2026-10-19T09:00:00+00:00
-updated: 2026-10-19T10:00:00+00:00
-outcome: "Front matter parses into a typed Item."
-scope:
-  in: [parsing, round-trip, errors]
-  out: [schema migration]
-acceptance:
-  - "Round-trips YAML without loss"
-  - "Unknown keys are preserved"
-```
+ItemLifecycle compares before/after tracked target fields and Plan/Design/Decisions
+sections at persistence. Open-item target changes, producer receipts and non-done
+verifier receipts clear verification. Explicit successful verifier receipt intent
+establishes `verified_at` for the resulting target, including added artifact paths;
+supplying a timestamp or verifier-shaped metadata through ordinary save cannot mint
+proof. Current proof also requires a matching last successful verifier receipt.
 
-Body (narrative):
+Every supported transition into done uses this rule. CloseCommand normally refuses
+missing current proof; only explicit `close --force` records an unverified exception,
+without fabricating success or bypassing structural/history protection. Receipt and
+close remain separate calls. Already-done legacy records are preserved, not migrated
+or retroactively certified.
 
-```markdown
-## Plan
-...
-## Decisions
-...
-## Progress
-- 2026-10-19T14:30:00+00:00 · worker · done
-  Finding: ...
-  Artifacts: cli/src/Store/FrontMatter.php
-  Decision: none
-  Next: verify
-```
+For done records, material target changes, reopening, producer work and unsuccessful
+verification are refused with explicit follow-up guidance. No automatic successor
+or reopen mechanism exists. Non-material notes/priority remain possible. Same-path
+external artifact edits are outside detection: named targets freeze by convention
+and receipts, not content fingerprints or snapshots. CLI role labels do not prove
+real agent independence.
 
-Artifacts are listed in front matter; the progress log keeps the receipt trail.
+## Read projections
 
-The YAML codec is `symfony/yaml`. Front matter must start with `---` and close
-with `---`; unknown keys are preserved on read/write to stay forgiving toward
-human edits.
+ProjectView computes todo/current-approval/done-dependency readiness. Ownership
+overlap is a separate reported fact, not silently filtered readiness. The shared
+lexical comparator normalizes separators/dot segments and compares literal
+project-relative equality/ancestry on component boundaries. Root ownership differs
+from empty ownership; no glob, realpath, symlink or existence semantics apply.
 
-## Approval
+Status defaults cap human sections; `--all` removes every cap and includes terminal
+groups in JSON too. Default status/ready JSON already includes uncapped open groups.
+BriefCommand builds an allowlisted packet for text/JSON, not a serialized Item.
+Verifier packets omit last receipt, Progress and unknown metadata; they retain
+approved narrative, decisions and artifact references. Blinding is field-based,
+not semantic censorship. Explorer output targets are repository-relative.
 
-The scope hash is SHA-256 over canonical JSON of exactly:
+Plan/design commands replace one section. Optional phase/start flags validate
+before one atomic mutation, followed by board refresh; without flags they update
+content only. Phase alone never infers status. Set remains available for explicit
+corrections. No new approval, phase-order or Plan/Design gates are introduced.
 
-`kind, parent, title, outcome, scope.in, scope.out, acceptance, depends_on`
+## Distribution and runtime
 
-`depends_on` and arrays are normalized before hashing; acceptance order is
-preserved because criteria are numbered.
+InstallCommand copies root documents plus `.agents/`, `docs/` and `cli/`, excluding
+source `.workflow/`, vendor/tools and caches. Default is add-only; force refreshes
+ordinary kit files but never root AGENTS/README/LICENSE, host config/gitignore or
+existing workflow documents/history. ProjectInitializer creates missing templates;
+only a safe derived board may regenerate. Manual host-rule/config merges remain
+reviewed human work, not managed updates, automatic merges or deletions.
 
-- `approve` stores `{at, by, scope_hash}`.
-- Any change to a scope field makes the stored hash differ; the CLI reports
-  "stale approval" in `validate` and withholds the item from `ready`.
-- Status, phase, priority, owns, artifacts, plan, design, decisions, progress
-  and receipts never affect the hash. `approve` prints the actual scope
-  identity and values with the hash; `review` prints the exact epic and child
-  packet before approval.
+Destination resolution follows existing filesystem components before later parent
+segments and retains missing suffixes, rejecting source-equal/ancestor/descendant
+targets. Copy/initialization holds or rejects links/type collisions. This differs
+deliberately from lexical ownership comparison; it is not a guarantee against
+concurrent hostile filesystem replacement.
 
-This is the mechanism that fixes repeated approval prompts: the approval is
-stable until the *scope* changes, not until any byte changes.
+Runtime uses PHP >=8.4.1, Composer 2, iconv and locked Symfony packages plus mbstring
+polyfill via `composer install --no-dev`. Full development install brings PHPUnit
+and its native-extension requirements; `docs/install.md` lists them. Composer
+platform checks are authoritative. Every installed role explicitly reads host root
+AGENTS and surfaces absent/incomplete/conflicting manual merges rather than assuming
+host authority was overwritten.
 
-## CLI surface
+## Checks and limits
 
-Reads (bounded projections):
+Pure edge-case tests cover codec, graph, lifecycle, exact scope and lexical paths;
+isolated command/store/filesystem tests cover refusal-before-write, integration,
+history preservation and real links. Protocol examples execute only in isolated
+roots; installed prompt/reference checks are static, not real LLM startup tests.
+Full-suite and read-only validation results belong to the relevant receipts.
 
-| Command | Output | Budget |
-| --- | --- | --- |
-| `status` | working set + counts | ~15–25 lines (sections capped) |
-| `ready` | startable items, dependencies, overlaps | 1 line/item, first 20 |
-| `brief <id>` | delegation packet | ~20 lines |
-| `review <epic>` | exact epic + child scope packet | one block/item |
-| `deps [id]` | relationships, Mermaid | 1 line/item |
-| `validate` | diagnostics | errors/warnings only |
-| `board` | path to generated HTML | 1 line |
-| `show <id>` | raw record (human/debug only) | whole item |
-
-Writes: `init, new, plan, design, decide, set, approve, log, result, close,
-install`. Reads include `review` for exact frame approval.
-
-Exit codes: `0` success, `1` validation failure, `2` invalid input. No special
-recovery codes.
-
-`--json` is available on reads. Human output is the default.
-
-### Read discipline
-
-- L0 `status`: every session.
-- L1 `ready`: when choosing work.
-- L2 `brief`: when delegating; the only task content the orchestrator reads.
-  Prefer delegating by reference (worker runs `brief` itself) so even this
-  stays out of the orchestrator's context.
-- L2 `review <epic>`: the exact frame packet for approval; use it instead of a
-  prose summary.
-- L3 `show --section Plan|Design` or one artifact: exceptional; prefer a new
-  bounded question to an explorer.
-- L4 full report/diff/log: never in the orchestrator; belongs to the verifier
-  or a fresh explorer.
-
-### Receipt
-
-`result` appends a fixed block and updates `last_result`/`artifacts`:
-
-```
-- <iso timestamp> · <role> · <done|blocked|needs-decision|failed>
-  Finding: <one or two sentences>
-  Artifacts: <comma-separated paths>
-  Decision: <question or none>
-  Next: <one action>
-```
-
-A verifier `done` result sets `verified_at`. `close done` warns when it is
-absent; it does not block (guidance, not enforcement).
-
-## Readiness and dependencies
-
-`ready(id)` holds when:
-
-1. status is `todo`;
-2. approval exists and its scope hash is current;
-3. every item in `depends_on` has status `done`;
-4. the item loaded successfully (an unreadable item makes reads fail; run
-   `validate`).
-
-Owned-path overlap is computed separately. `ready` reports an item whose `owns`
-paths overlap an `in-progress` item with an `overlap:` marker; it does not
-silently drop it, because some work legitimately reads the same paths.
-
-`validate` detects dependency cycles with a depth-first traversal and rejects
-self-dependencies and missing targets.
-
-## Concurrency and durability
-
-- One Symfony `FlockStore` lock in `.workflow/.locks/` surrounds every write.
-- A write serializes the whole item, writes a temp file in the same directory,
-  `fsync`s it, then `rename`s it over `item.md`.
-- Reads are lock-free; atomic rename means a reader sees the old or new file,
-  never a partial one.
-- Only the orchestrator mutates records. Workers write artifacts to their owned
-  paths and return receipts. This gives one writer per record without a journal.
-
-## Distribution
-
-- `install <target>` copies `AGENTS.md`, `.agents/`, `docs/` and the `cli/`
-  source tree (excluding `vendor/`, `tools/`, caches and `.workflow/`) into the
-  target, then initializes `.workflow/`.
-- The target runs `composer install` in `cli/`.
-- The kit never copies the source project's `.workflow/` records.
-
-## Testing
-
-PHPUnit covers the codec, scope hash stability, approval invalidation, store
-atomicity, dependency validation, readiness and the command surface. CLI tests
-run against a temporary project root.
-
-## Deliberate omissions
-
-No database or ORM; no Dolt; no server, daemon or scheduler; no MCP in the
-first version (the same projections can be wrapped later); no CAS, manifest
-hashes, journal or recovery protocol; no per-attempt directories; no waves,
-groups, checkpoints or coordinating briefs; no auto-commit.
-
-## Decisions
-
-- Storage: Markdown only. Revisit only if a measured need for an index appears;
-  then it is derived and rebuildable.
-- IDs: `E-NNN`, `T-NNN`, `S-NNN`, allocated by scanning existing items.
-- Approval: scope hash, per item.
-- Roles: orchestrator (plans and designs), explorer, worker, verifier.
-- Board: static read-only HTML.
-- Development: conventional first; dogfood once stable.
-
-See [docs/design-notes.md](../docs/design-notes.md) for the review that
-produced these decisions, the alternatives considered, and the measured context
-economy.
+No database, daemon, managed updater, recovery journal, content-freshness metadata
+or automatic history migration. See [historical design notes](../docs/design-notes.md)
+for earlier alternatives, not current operating instructions.

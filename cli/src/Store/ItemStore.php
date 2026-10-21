@@ -9,8 +9,11 @@ use Symfony\Component\Lock\Store\FlockStore;
 use Workflow\Domain\FrontMatter;
 use Workflow\Domain\InvalidItemException;
 use Workflow\Domain\Item;
+use Workflow\Domain\ItemLifecycle;
 use Workflow\Domain\Kind;
+use Workflow\Domain\Status;
 use Workflow\Domain\WorkflowException;
+use Workflow\Validate\StructureValidator;
 
 final class ItemStore
 {
@@ -95,7 +98,10 @@ final class ItemStore
 
     public function save(Item $item): void
     {
-        $this->withLock(fn () => $this->persist($item));
+        $this->withLock(function () use ($item): void {
+            $before = $this->exists($item->id) ? $this->load($item->id) : null;
+            $this->persist($item, $before);
+        });
     }
 
     public function create(Item $item): void
@@ -117,10 +123,56 @@ final class ItemStore
      */
     public function mutate(string $id, callable $callback): mixed
     {
-        return $this->withLock(function () use ($id, $callback): mixed {
+        return $this->mutateWithIntent($id, $callback);
+    }
+
+    /**
+     * Record explicit receipt intent, including identical receipts in one second.
+     *
+     * @param array<string, mixed> $receipt
+     * @param list<string> $artifacts
+     */
+    public function recordReceipt(string $id, array $receipt, array $artifacts, string $progress): void
+    {
+        $this->mutateWithIntent($id, function (Item $item) use ($receipt, $artifacts, $progress): void {
+            $item->lastResult = $receipt;
+            $item->addArtifacts($artifacts);
+            $this->appendProgress($item, $progress);
+        }, $receipt);
+    }
+
+    /** The sole explicit unverified-completion exception; never a generic save flag. */
+    public function close(string $id, Status $status, string $reason, string $at, bool $force = false): bool
+    {
+        if (!in_array($status, [Status::Done, Status::Cancelled], true)) {
+            throw new WorkflowException('Close requires status done or cancelled.');
+        }
+
+        $closed = $this->mutateWithIntent($id, function (Item $item) use ($status, $reason, $at): Item {
+            $item->status = $status;
+            $entry = sprintf('- %s · closed as %s', $at, $status->value);
+            if ($reason !== '') {
+                $entry .= "\n  Reason: ".$reason;
+            }
+            $this->appendProgress($item, $entry);
+
+            return $item;
+        }, forceClose: $force);
+
+        return ItemLifecycle::hasCurrentVerification($closed);
+    }
+
+    /** @param array<string, mixed>|null $receipt */
+    private function mutateWithIntent(string $id, callable $callback, ?array $receipt = null, bool $forceClose = false): mixed
+    {
+        return $this->withLock(function () use ($id, $callback, $receipt, $forceClose): mixed {
             $item = $this->load($id);
+            $before = clone $item;
             $result = $callback($item);
-            $this->persist($item);
+            if ($item->id !== $id) {
+                throw new InvalidItemException(sprintf('Cannot change item id %s to %s.', $id, $item->id));
+            }
+            $this->persist($item, $before, $receipt, $forceClose);
 
             return $result;
         });
@@ -182,8 +234,44 @@ final class ItemStore
         }
     }
 
-    private function persist(Item $item): void
+    /** @param array<string, mixed>|null $receipt */
+    private function persist(Item $item, ?Item $before = null, ?array $receipt = null, bool $forceClose = false): void
     {
+        $unverifiedException = ItemLifecycle::apply($before, $item, $receipt, $forceClose);
+        $items = [];
+        foreach ($this->ids() as $id) {
+            $path = $this->itemPath($id);
+            if (!is_file($path)) {
+                continue;
+            }
+            $raw = file_get_contents($path);
+            if ($raw === false) {
+                continue;
+            }
+            try {
+                $data = FrontMatter::parse($raw)['data'];
+                // References resolve by directory ID. Keep structural edges
+                // even when declared IDs or nonstructural metadata are broken;
+                // this projection is never written back as an automatic repair.
+                $items[$id] = Item::fromArray([
+                    'id' => $id,
+                    'kind' => $data['kind'] ?? null,
+                    'parent' => $data['parent'] ?? null,
+                    'depends_on' => $data['depends_on'] ?? [],
+                ], '');
+            } catch (InvalidItemException) {
+                // Unparseable structure remains a full-validate diagnostic,
+                // not a gate on edits to unrelated records.
+            }
+        }
+        $result = (new StructureValidator())->validateCandidate($item, $items);
+        if (!$result->ok()) {
+            throw new InvalidItemException(implode("\n", $result->errors));
+        }
+
+        if ($unverifiedException) {
+            $this->appendProgress($item, '- Verification exception: explicit --force; closed without a current successful verifier receipt.');
+        }
         $item->updated = gmdate('c');
         $contents = FrontMatter::render($item->toArray(), $item->body);
         $this->atomicWrite($this->itemPath($item->id), $contents);

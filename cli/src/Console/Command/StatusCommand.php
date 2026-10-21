@@ -24,7 +24,7 @@ final class StatusCommand extends BaseCommand
     protected function configure(): void
     {
         $this->setDescription('Show the working set: active, ready, waiting and decisions.')
-            ->addOption('all', null, InputOption::VALUE_NONE, 'Also list draft, done and cancelled items.')
+            ->addOption('all', null, InputOption::VALUE_NONE, 'List every item in each section, including done and cancelled.')
             ->addOption('json', null, InputOption::VALUE_NONE, 'Emit JSON.');
     }
 
@@ -33,6 +33,9 @@ final class StatusCommand extends BaseCommand
         $store = $this->store($input);
         $view = $this->view($input);
         $items = $view->items();
+        $all = (bool) $input->getOption('all');
+        $activeLimit = $all ? null : self::ACTIVE_LIMIT;
+        $summaryLimit = $all ? null : self::SUMMARY_LIMIT;
 
         $readyRows = $view->ready($items);
         $readyIds = array_map(static fn (array $row): string => $row['item']->id, $readyRows);
@@ -59,7 +62,7 @@ final class StatusCommand extends BaseCommand
         }
 
         if ($input->getOption('json')) {
-            $this->writeJson($output, [
+            $data = [
                 'project' => basename($store->root()),
                 'active' => array_map(fn (Item $item): array => $this->itemSummary($item), $active),
                 'drafts' => array_map(fn (Item $item): array => $this->itemSummary($item), $drafts),
@@ -77,7 +80,14 @@ final class StatusCommand extends BaseCommand
                 ], $waiting),
                 'decisions' => array_map(fn (Item $item): array => $this->itemSummary($item), $decisions),
                 'counts' => $counts,
-            ]);
+            ];
+            if ($all) {
+                foreach ([Status::Done, Status::Cancelled] as $status) {
+                    $group = array_values(array_filter($items, static fn (Item $item): bool => $item->status === $status));
+                    $data[$status->value] = array_map(fn (Item $item): array => $this->itemSummary($item), $group);
+                }
+            }
+            $this->writeJson($output, $data);
 
             return self::SUCCESS;
         }
@@ -90,7 +100,7 @@ final class StatusCommand extends BaseCommand
                 $item->id,
                 $item->kind->value,
                 Text::truncate($item->title, 60),
-            ).'  (awaiting scope + approval)', self::SUMMARY_LIMIT);
+            ).'  (awaiting scope + approval)', $summaryLimit);
         }
 
         $this->section($output, 'active', $active, static function (Item $item): string {
@@ -99,12 +109,12 @@ final class StatusCommand extends BaseCommand
             $needs = ($item->lastResult['status'] ?? null) === 'needs-decision' ? '  needs: decision' : '';
 
             return trim(sprintf('%-7s %-9s %-4s %s%s', $item->id, $role !== '' ? $role : '—', $age, Text::truncate($item->title, 60), $needs));
-        }, self::ACTIVE_LIMIT);
+        }, $activeLimit);
 
         if ($readyRows !== []) {
             $output->writeln('');
             $output->writeln(sprintf('ready (%d)', count($readyRows)));
-            foreach (array_slice($readyRows, 0, self::SUMMARY_LIMIT) as $row) {
+            foreach (array_slice($readyRows, 0, $summaryLimit) as $row) {
                 $item = $row['item'];
                 $suffix = 'deps:'.Text::inlineList($item->dependsOn);
                 if ($item->owns !== []) {
@@ -115,32 +125,32 @@ final class StatusCommand extends BaseCommand
                 }
                 $output->writeln(sprintf('  %-7s %s  %s', $item->id, Text::truncate($item->title, 60), $suffix));
             }
-            $this->moreLine($output, count($readyRows), self::SUMMARY_LIMIT);
+            $this->moreLine($output, count($readyRows), $summaryLimit ?? count($readyRows));
         }
 
         if ($waiting !== []) {
             $output->writeln('');
             $output->writeln(sprintf('waiting (%d)', count($waiting)));
-            foreach (array_slice($waiting, 0, self::SUMMARY_LIMIT) as [$item, $reason]) {
+            foreach (array_slice($waiting, 0, $summaryLimit) as [$item, $reason]) {
                 $output->writeln(sprintf('  %-7s %s  %s', $item->id, Text::truncate($item->title, 60), $reason));
             }
-            $this->moreLine($output, count($waiting), self::SUMMARY_LIMIT);
+            $this->moreLine($output, count($waiting), $summaryLimit ?? count($waiting));
         }
 
         if ($decisions !== []) {
             $output->writeln('');
             $output->writeln(sprintf('decisions (%d)', count($decisions)));
-            foreach (array_slice($decisions, 0, self::SUMMARY_LIMIT) as $item) {
+            foreach (array_slice($decisions, 0, $summaryLimit) as $item) {
                 $text = (string) ($item->lastResult['decision'] ?? '');
                 if ($text === '') {
                     $text = (string) ($item->lastResult['finding'] ?? '');
                 }
                 $output->writeln(sprintf('  %-7s %s  %s', $item->id, Text::truncate($item->title, 45), Text::truncate($text, 80)));
             }
-            $this->moreLine($output, count($decisions), self::SUMMARY_LIMIT);
+            $this->moreLine($output, count($decisions), $summaryLimit ?? count($decisions));
         }
 
-        if ($input->getOption('all')) {
+        if ($all) {
             foreach ([Status::Done, Status::Cancelled] as $status) {
                 $group = array_values(array_filter($items, static fn (Item $item): bool => $item->status === $status));
                 $this->section($output, $status->value, $group, static fn (Item $item): string => sprintf(

@@ -1,192 +1,109 @@
 # General agentic workflow
 
-A small, Markdown-first workflow for coordinating LLM agents on real work.
+A small, Markdown-first kit for coordinating LLM agents. Item records preserve
+scope, decisions and evidence; a project-local CLI provides compact delegation
+views, dependency/ownership checks and a generated board. Explorers investigate,
+workers deliver, and independent verifiers check frozen outcomes.
 
-The orchestrator coordinates. It does **not** read the work. It works through
-five bounded commands — `status`, `ready`, `brief`, `review` (reads) and
-`result` (record a receipt) — while explorers, workers and verifiers read
-sources and artifacts in their own context and return a short receipt.
+[AGENTS.md](AGENTS.md) is the operating contract. Roles load it explicitly;
+skills supply methods rather than another protocol. See the
+[command contract](.agents/skills/workflow-cli/SKILL.md) and
+[installation guide](docs/install.md).
 
-## Why it is shaped this way
+## Quickstart
 
-- **Context economy.** One `item.md` per task, a compact brief for delegation,
-  and a fixed-size receipt for results. The orchestrator's context depends on
-  the number of active items, not the size of the backlog or the artifacts.
-- **Durable state.** Markdown in the repository is the source of truth. A fresh
-  session resumes from `status` plus one `brief`.
-- **One approval.** Approval covers the item's scope and survives status,
-  plan, design, progress and artifact changes. Present the exact records
-  (`workflow review <epic>`) rather than a summary; only a real scope change
-  re-prompts.
-- **Bounded files.** One `item.md` per item, an optional `outputs/` directory,
-  and an append-only progress log. No per-attempt directories, no copied
-  projects, no databases.
-- **Safe parallelism.** Dependencies and owned paths are explicit; `ready`
-  reports overlaps before two agents collide.
-- **Steer, don't legislate.** A short protocol, four roles and ten skills give
-  the model direction without encoding every edge case.
+Requires **PHP >=8.4.1, Composer 2 and iconv**. From `cli/`, run
+`composer install --no-dev` for runtime use; mbstring is supplied by a polyfill.
+For development prerequisites and the full install, see below.
 
-## Quick start
+Run this walkthrough from the kit root. It creates an isolated project outside
+the kit and retains its history. Approval comments are real human checkpoints.
+Worker/verifier sections demonstrate separate role runs: in agent use, delegate
+them independently and record only receipts from checks actually performed.
 
-Requires PHP 8.4+ and Composer.
-
+<!-- protocol-example: quickstart -->
 ```sh
-cd cli
-composer install
-cd ..
+kit="$PWD"
+export PATH="$kit/cli/bin:$PATH"
+mkdir -p "${TMPDIR:-/tmp/opencode}"
+demo="$(mktemp -d "${TMPDIR:-/tmp/opencode}/workflow-demo.XXXXXX")"
+workflow --project "$demo" init --name "Greeting demo"
+cd "$demo"
 
-# Scaffold the records (already done in this repository).
-cli/bin/workflow init
+workflow new "Greeting example" --kind epic \
+  --outcome "One greeting note is delivered and independently checked."
+workflow set E-001 'scope_in=One greeting note' 'scope_out=Application code' \
+  'acceptance=The note contains exactly hello and a newline'
+workflow plan E-001 --text "Check the requested literal greeting; no exploration needed for this fixed example."
+workflow review E-001
+# After the user confirms this exact epic/discovery scope:
+workflow approve E-001 --by user
 
-# Frame work.
-cli/bin/workflow new "First epic" --kind epic
-cli/bin/workflow approve E-001 --by adam
-cli/bin/workflow new "Parse YAML front matter" \
-  --kind task --parent E-001 \
-  --outcome "Front matter round-trips into a typed Item." \
-  --owns cli/src/Domain/
+workflow new "Write greeting" --kind task --parent E-001 \
+  --outcome "A greeting note contains exactly hello and a newline." \
+  --owns .workflow/items/T-001/outputs/greeting.txt
+workflow set T-001 'scope_in=The greeting note' 'scope_out=Other files' \
+  'acceptance=The note contains exactly hello and a newline'
+workflow plan T-001 --text "Use the fixed greeting requirement; no exploration needed; stop when exact bytes pass."
+workflow design E-001 --text "Scope map: T-001 owns .workflow/items/T-001/outputs/greeting.txt, covers the sole criterion, has no dependencies; integrate by checking exact bytes. One task, no subtasks: one independently acceptable note. No open risks."
+workflow design T-001 --text "Follow parent Design; write hello plus newline at the owned path; check with cmp. No open risks." --phase design
+workflow review E-001
+# After the user confirms the exact new child scope (epic scope is unchanged):
+workflow approve T-001 --by user
+workflow ready
 
-# Fill the scope, then approve it once.
-cli/bin/workflow set T-001 \
-  'acceptance=Round-trips without loss; Unknown keys are preserved' \
-  'scope_in=Parsing; Round-trip; Errors' \
-  'scope_out=Schema migration'
-cli/bin/workflow approve T-001 --by adam
+# Coordinator starts work, then the worker reads its brief and writes the note:
+workflow set T-001 status=in-progress phase=implement
+workflow brief T-001 --for worker
+mkdir -p .workflow/items/T-001/outputs
+printf 'hello\n' > .workflow/items/T-001/outputs/greeting.txt
+# Coordinator records the worker's returned receipt:
+workflow result T-001 --status done --finding "Greeting note written." \
+  --artifacts .workflow/items/T-001/outputs/greeting.txt --next "Independent verification"
 
-# Plan before exploration, design after it.
-cli/bin/workflow plan T-001 --text "Question, dimensions, sources, stop conditions."
-cli/bin/workflow design T-001 --text "Outline, canonical values, decisions, checks."
+# Coordinator dispatches verification; a separate verifier reads and checks:
+workflow set T-001 phase=verify
+workflow brief T-001 --for verifier
+printf 'hello\n' | cmp - .workflow/items/T-001/outputs/greeting.txt
+# Coordinator records the actual verifier receipt, then closes:
+workflow result T-001 --role verifier --status done --finding "cmp confirmed exact greeting bytes." \
+  --artifacts .workflow/items/T-001/outputs/greeting.txt --next close
+workflow close T-001
 
-# Daily coordination.
-cli/bin/workflow status
-cli/bin/workflow ready
-cli/bin/workflow brief T-001 --for worker
-cli/bin/workflow result T-001 --status done --finding "Codec implemented; 14 tests pass." \
-  --artifacts cli/src/Domain/FrontMatter.php --next verify
-cli/bin/workflow board
+# Coordinator dispatches an epic integration verifier for child completion/note:
+workflow set E-001 status=in-progress phase=verify
+workflow brief E-001 --for verifier
+workflow status --all
+printf 'hello\n' | cmp - .workflow/items/T-001/outputs/greeting.txt
+# Coordinator records that verifier's receipt and closes the epic:
+workflow result E-001 --role verifier --status done --finding "Child completion and integrated greeting checked." \
+  --artifacts .workflow/items/T-001/outputs/greeting.txt --next close
+workflow close E-001
+workflow validate
+printf 'Demo retained at %s\n' "$demo"
 ```
 
-Run commands from anywhere inside the project; the CLI finds the nearest
-`.workflow/`. Use `--project` to point at another project.
+Commands find the nearest `.workflow/`; `--project /absolute/path` selects a
+different root. This kit's own records already exist: do not run the example
+against them. The CLI does not authenticate role independence or human consent.
 
-## Records
+## Records and limits
 
-```
-.workflow/
-  PRD.md                 product requirements
-  Architecture.md        design and decisions
-  board.html             generated read-only board
-  items/<ID>/item.md     YAML state + Markdown body + progress log
-  items/<ID>/outputs/    deliverables, only when there are real files
-```
+`.workflow/PRD.md` holds requirements, `Architecture.md` holds design, and each
+`items/<ID>/item.md` holds YAML state and narrative. Optional `outputs/` holds
+real evidence/deliverables; `board.html` is derived. No database or per-attempt
+project copies are needed.
 
-Item state:
-
-```yaml
-id: T-002
-kind: task                # epic | task | subtask
-parent: T-001
-title: Parse YAML front matter
-status: todo              # draft | todo | in-progress | done | cancelled
-phase: plan               # plan | explore | design | implement | verify
-priority: 2
-depends_on: []
-owns: [cli/src/Domain/]
-artifacts: []
-approval: {at: ..., by: adam, scope_hash: ...}
-outcome: ...
-scope: {in: [...], out: [...]}
-acceptance: [...]
-```
-
-`board.html` is generated and read-only. Commands that change a card
-(`init`, `new`, `set`, `approve`, `close`) rewrite it automatically, so
-reopening the board shows the current state. `workflow board` forces a
-rewrite after a manual edit.
-
-## The loop
-
-1. **Frame** — outcome, scope, acceptance, dependencies, owned paths.
-2. **Plan** — pre-exploration approach: question, dimensions, sources, stop
-   conditions, acceptance mapping.
-3. **Explore** — bounded questions: codebase, web/prior art, analysis, spikes.
-4. **Design** — post-exploration solution: outline, canonical claims or
-   numbers, decisions, trade-offs, checks, risks. At epic level: guide or
-   system architecture, child decomposition and coverage.
-5. **Implement** — the worker changes owned paths only and implements the
-   design.
-6. **Verify** — an independent verifier checks the frozen artifacts against
-   acceptance and design.
-7. **Close** — done or cancelled.
-
-Apply the loop to every epic, task and subtask. For multi-dimensional work,
-run a discovery/design task before framing the implementation children, then
-present the exact `workflow review <epic>` packet for approval. Phases and
-hierarchy are guidance, not a state machine. The CLI enforces only what
-prevents corruption; it warns when a plan or design is missing. Each role gets
-`workflow brief <id> --for <role>`. A done closure without a verifier receipt
-is refused unless `--force` is used deliberately.
-
-## Commands
-
-| Command | Purpose |
-| --- | --- |
-| `init` | scaffold `.workflow/` |
-| `new` | create a draft item |
-| `status` | working set: active, ready, waiting, decisions |
-| `ready` | startable work with dependency and overlap facts |
-| `brief <id> --for role` | bounded delegation packet |
-| `review <epic>` | exact epic + child scope packet for approval |
-| `plan <id>` | replace the `## Plan` section from text or a file |
-| `design <id>` | replace the `## Design` section from text or a file |
-| `decide <id>` | append a durable decision |
-| `result <id>` | append a receipt |
-| `deps [id]` | dependency relationships or a Mermaid graph |
-| `set <id>` | update mutable fields |
-| `approve <id>` | approve the current scope |
-| `log <id>` | append a progress line |
-| `close <id>` | mark done or cancelled; done needs a verifier receipt |
-| `validate` | structure, dependencies, approval, layout |
-| `board` | write the static HTML board |
-| `show <id>` | raw record (human/debug) |
-| `install <dir>` | copy the kit into another project |
-
-All reads support `--json`.
-
-## Roles and skills
-
-- Orchestrator — plans, frames, decomposes, delegates, records, resumes.
-- Explorer — answers one bounded question with primary evidence.
-- Worker — implements the approved design within owned paths.
-- Verifier — checks the frozen artifacts against acceptance and design.
-
-Delegation is by reference and role-specific: the explorer gets the plan and
-`outputs/` target, the worker gets the plan, design, parent design and upstream
-artifacts, and the verifier gets the acceptance criteria and design with the
-producer claim omitted.
-
-Skills: `critical-reasoning`, `clear-communication`, `workflow-cli`,
-`requirements`, `code-architecture`, `ui-ux-design`, `decompose-work`,
-`verify-outcome`, `install-workflow`, `fresh-session-handoff`.
-
-## Install into another project
-
-See [docs/install.md](docs/install.md).
-
-## Deliberate omissions
-
-No database, ORM, server, daemon, scheduler or MCP in this version. No CAS,
-manifest hashes, journal or recovery protocol. No per-attempt directories,
-waves, groups or checkpoints. If a measured need for an index appears, it will
-be derived and rebuildable.
-
-See [docs/design-notes.md](docs/design-notes.md) for the review of the previous
-system, the alternatives considered and the context-economy measurements.
+Approval tracks scope only. Verification is separately invalidated by tracked
+target changes. Completed records stay historical; new work gets an explicitly
+approved follow-up. Same-path artifact edits rely on freezing and honest receipts,
+not content hashes. Installation is scaffold copying and manual merging, not a
+managed updater. See [historical design notes](docs/design-notes.md) for context.
 
 ## Development
 
-```sh
-cd cli
-composer install
-composer test
-```
+Run full `composer install` in `cli/`, then `composer test`. Development needs
+native **dom, filter, json, libxml, mbstring, phar, tokenizer and xmlwriter**
+extensions in addition to runtime requirements. Composer's platform checks are
+authoritative. Tests use isolated temporary projects; they do not prove real LLM
+startup or role independence.

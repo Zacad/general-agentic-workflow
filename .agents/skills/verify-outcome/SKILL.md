@@ -5,40 +5,30 @@ description: Independently check a frozen outcome against its acceptance criteri
 
 # Verify an outcome
 
-**Inputs:** the item's verifier brief (`workflow brief <id> --for verifier`:
-acceptance criteria, scope, design, decisions), the frozen artifact paths, and
-the verifier's own result artifact.
+**Inputs:** root `AGENTS.md`, `workflow brief <id> --for verifier`, frozen
+target paths and an assigned verification-artifact path.
 
 ## Procedure
 
-1. Use the verifier brief, which omits the producer claim. Before reading any
-   worker conclusion, derive expected behavior from the acceptance criteria,
-   design and primary sources.
-2. Confirm the target is frozen and matches the item. A changing target cannot
-   be verified.
-3. Judge both the acceptance criteria and the design. If the design is
-   missing, record that as a limitation; do not invent one.
-4. State whether this is a full verification or a targeted recheck. A recheck
-   of named fixes does not prove the rest of the artifact.
-5. Check the artifact itself, not the existence of a report. Run the commands
-   or inspections that could reveal failure:
-   - normal, error, recovery and boundary cases;
-   - the affected regression surface, not the whole world;
-   - for code: execute it with the project's real runtime and dependencies;
-   - for prose: check exact facts, quantities, dates and sources;
-   - for UI: rendered states, contrast, focus, keyboard and reflow where
-     claimed.
-6. For each criterion record: expected, observed, method, environment,
-   result (`pass`, `fail`, `unrun`, `blocked`) and limits.
-7. Distinguish a wrong result from an unrun check. Missing tools or
-   prerequisites leave the criterion unverified; do not install or repair.
-8. Preserve the failed target. A repair needs a new named target and a new
-   check.
-9. Return a verifier receipt. The orchestrator records it with
-   `--role verifier` before closing the item.
+1. Derive expectations from acceptance, scope, Design and primary sources
+   before reading producer conclusions. Confirm target identity and freeze;
+   field-based packet blinding cannot remove conclusions in approved narrative.
+2. State full verification or targeted recheck. Check both criteria and Design;
+   report missing design as a limit, not an invitation to invent requirements.
+3. Inspect actual artifacts and run failure-revealing checks: normal, error,
+   recovery, boundary and affected regressions. Use the real runtime for code;
+   check exact claims/sources in prose and rendered accessibility states for UI.
+   A report's existence or green tests for a different criterion are not proof.
+4. Record per criterion: expected, observed, method, environment, result
+   (`pass`, `fail`, `unrun`, `blocked`) and limits. Distinguish unavailable checks
+   from failures; do not install, repair or mutate the target to make it pass.
+5. Preserve failed targets. A repaired open target needs a new check; material
+   completed-item work needs the explicit follow-up defined in AGENTS. No content
+   fingerprint machinery guarantees a same-path freeze.
+6. Return the actual verdict. The coordinator records the verifier receipt
+   before a separate close; a deliberate force exception is never your success.
 
 ## Output
 
-A per-criterion result artifact and a receipt. The receipt carries only the
-overall status, a short finding, artifact paths, any decision and the next
-action.
+Per-criterion evidence and the fixed AGENTS receipt. Do not return `done` with
+failed or materially unverified acceptance criteria.

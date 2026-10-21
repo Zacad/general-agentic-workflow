@@ -5,28 +5,23 @@ description: Resume or hand off work from the records alone, with current author
 
 # Fresh-session handoff
 
-**Inputs:** the project root and the `workflow` binary.
+**Inputs:** project root, root `AGENTS.md`, workflow binary and assigned role.
 
 ## Procedure
 
-1. Run `workflow status`. If the next item is unclear, run `workflow ready`.
-2. Open the selected item's role-specific
-   `workflow brief <id> --for <role>`.
-3. Confirm:
-   - the item ID, status, phase and parent;
-   - whether approval is current (and re-approve only if scope changed);
-   - dependency state and owned paths;
-   - the plan (pre-exploration approach) and design (post-exploration
-     solution), including the parent design for a child item;
-   - the artifacts and upstream artifacts that matter now;
-   - the last receipt and any open decision.
-   For an epic, `workflow review <epic>` is the exact frame handoff.
-4. Record a handoff only when asked: workspace, item, approval scope, current
-   artifacts, limits and one bounded next action.
-5. A handoff is a snapshot, not approval or proof. The recipient re-reads the
-   brief and checks current state before acting.
+1. Load the canonical root rules; surface missing/conflicting host merges.
+   Run `workflow status`, then `ready` only if choosing work is unclear.
+2. Run the selected item's explicit role brief. Confirm identity, scope approval,
+   dependencies/ownership, Plan/Design, parent Design and relevant artifact paths.
+   Do not load full reports/history for a routine resume.
+3. Non-verifier roles may use the last receipt/open decision. Verifiers derive
+   expectations without producer conclusions. Exact epic frame review uses
+   `workflow review <epic>`, not a handoff summary as approval.
+4. If asked for a handoff, state workspace, item, current authority, named
+   target, limits and one bounded next action. Completed-history work follows
+   AGENTS' explicit follow-up policy.
 
 ## Output
 
-Either a resumed work session or a short pasteable handoff. Do not load full
-reports or history for a routine resume; the brief is the handoff.
+A resumed session or short pasteable snapshot. A handoff is neither approval
+nor proof; the recipient checks current records before acting.

@@ -8,6 +8,9 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Workflow\Domain\Item;
+use Workflow\Domain\Phase;
+use Workflow\Domain\Status;
 use Workflow\Store\ItemStore;
 
 final class PlanCommand extends BaseCommand
@@ -22,7 +25,9 @@ final class PlanCommand extends BaseCommand
         $this->setDescription('Replace the item\'s ## Plan section from text or a file.')
             ->addArgument('id', InputArgument::REQUIRED, 'Item ID.')
             ->addOption('text', null, InputOption::VALUE_REQUIRED, 'Plan text. Use ### for subsections.')
-            ->addOption('file', null, InputOption::VALUE_REQUIRED, 'Read the plan from a file.');
+            ->addOption('file', null, InputOption::VALUE_REQUIRED, 'Read the plan from a file.')
+            ->addOption('phase', null, InputOption::VALUE_REQUIRED, 'Also set phase: plan, explore, design, implement or verify.')
+            ->addOption('start', null, InputOption::VALUE_NONE, 'Also set status to in-progress.');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -50,15 +55,31 @@ final class PlanCommand extends BaseCommand
             }
         }
 
+        $phaseValue = $input->getOption('phase');
+        $phase = $phaseValue === null ? null : Phase::tryFrom(strtolower((string) $phaseValue));
+        if ($phaseValue !== null && $phase === null) {
+            $output->writeln('<error>Invalid phase: use plan, explore, design, implement or verify.</error>');
+
+            return self::INVALID;
+        }
+        $start = (bool) $input->getOption('start');
+
         $id = (string) $input->getArgument('id');
         $content = trim((string) $text);
 
         $store = $this->store($input);
-        $store->mutate($id, function ($item) use ($content): void {
+        $store->mutate($id, function (Item $item) use ($content, $phase, $start): void {
             $item->body = ItemStore::replaceSection($item->body, 'Plan', $content);
+            if ($phase !== null) {
+                $item->phase = $phase;
+            }
+            if ($start) {
+                $item->status = Status::InProgress;
+            }
         });
 
         $output->writeln(sprintf('Plan updated for %s', $id));
+        $this->refreshBoard($input, $output);
 
         return self::SUCCESS;
     }
