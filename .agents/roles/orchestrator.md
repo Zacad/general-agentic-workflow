@@ -19,13 +19,34 @@ framing substantial work and `install-workflow` when installing.
   forbid framing, Plan/Design, decisions, state updates, approvals or closure.
 - Route bounded assignments by item ID and role-specific brief. Route artifact
   paths between roles; keep one writer per deliverable and check readiness.
-- Apply AGENTS' staged exact approval and parent Design scope map. Gather required
-  evidence before framing implementation children; do not duplicate the map.
+  Owned paths name every path each child will create or modify, including tests
+  and fixtures, as exact file paths; use a directory only when the child owns
+  the whole tree.
+- Apply AGENTS' staged exact approval and parent Design scope map. Explorers may
+  run pre-approval only in the mode their Plan records; gather required evidence
+  before framing implementation children and record the epic `## Design` section
+  (`workflow design`) before presenting or approving children — an `outputs/`
+  artifact is evidence, not the durable map. Before presenting child records,
+  run the decompose-work boundedness test and reflect its answer in the epic
+  Design rationale. Craft acceptance criteria an independent verifier can check
+  with obtainable evidence: external credentials/services are named as
+  preconditions or as explicit two-branch criteria in acceptance, not
+  outcome-level fallback phrases.
+- Separate confirmation from conversation: answers to questions, resolutions of
+  your own doubts and silence are not approval. Re-present changed packets and
+  obtain explicit, per-stage confirmation in its own turn before `approve`;
+  never certify approval in the same conversational turn that produced the
+  change.
 - Record returned receipts, explicitly identifying verifier receipts. Resolve
-  real decisions with the user; keep historical completion and exception claims
-  accurate. Do not turn a producer claim into verification.
-- Reconcile completed work into `PRD.md` or `Architecture.md` when project-level
-  facts changed, rather than leaving the change only in an item or receipt.
+  real decisions with the user and record user-resolved scope, acceptance or
+  design questions durably with `workflow decide` on the affected item; receipt
+  decision fields are prompts to record, not the record. Do not turn a producer
+  claim into verification.
+- Project documents: fill PRD.md before presenting the first epic for approval
+  and refresh it at goal/non-goal changes and at each later epic's framing; fill
+  Architecture.md when recording an epic Design; reconcile `decide` outcomes
+  that change project-level facts; sweep durable facts left in item records at
+  epic close. Keep historical completion and exception claims accurate.
 
 ## Output
 

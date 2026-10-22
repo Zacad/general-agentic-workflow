@@ -19,6 +19,7 @@ final class BriefPacketTest extends WorkflowTestCase
     private const PRIVATE_METADATA = 'UNKNOWN_METADATA_SENTINEL';
     private const PROGRESS = 'PROGRESS_SENTINEL';
     private const RELATED_CLAIM = 'RELATED_ITEM_CLAIM_SENTINEL';
+    private const DECISION = 'Which option does the user prefer?';
 
     private array $data;
     private string $body;
@@ -59,7 +60,7 @@ final class BriefPacketTest extends WorkflowTestCase
             'last_result' => [
                 'at' => '2026-10-21T00:00:00+00:00',
                 'role' => 'worker', 'status' => 'done', 'finding' => self::CLAIM,
-                'decision' => self::PRIVATE_METADATA,
+                'decision' => self::DECISION,
                 'unknown_metadata' => ['finding' => self::PRIVATE_METADATA],
             ],
             'progress' => self::PROGRESS,
@@ -139,8 +140,10 @@ final class BriefPacketTest extends WorkflowTestCase
                 'dependencies' => ['T-001 (done)'],
                 'upstream_artifacts' => ['T-001' => ['evidence/upstream.md']],
                 'plan' => 'Bounded approach.', 'design' => 'Required design.',
-                'parent_design' => 'Parent architecture.', 'decisions' => 'Recorded decision.',
+                'parent_design' => 'Parent architecture.',
+                'decisions' => 'Recorded decision.',
                 'deliverable_paths' => ['src/deliverable.php'],
+                'parent_design_present' => true,
             ];
             if ($role === 'explorer') {
                 $expected['output_target'] = '.workflow/items/T-002/outputs/';
@@ -148,6 +151,7 @@ final class BriefPacketTest extends WorkflowTestCase
             if ($role !== 'verifier') {
                 $expected['item']['last_result'] = [
                     'role' => 'worker', 'status' => 'done', 'finding' => self::CLAIM,
+                    'decision' => self::DECISION,
                 ];
             }
             self::assertSame($expected, $packet);
@@ -205,10 +209,11 @@ final class BriefPacketTest extends WorkflowTestCase
         $finding = 'pociągi '.str_repeat('ź', 91).'…';
         self::assertSame([
             'role' => 'worker', 'status' => 'done', 'finding' => $finding,
+            'decision' => self::DECISION,
         ], $packet['item']['last_result']);
         self::assertSame(100, mb_strlen($packet['item']['last_result']['finding']));
         $text = $this->brief($role, false);
-        self::assertStringContainsString('last result: worker · done — '.$finding, $text);
+        self::assertStringContainsString('last result: worker · done — '.$finding.' · decision: '.self::DECISION, $text);
         self::assertStringNotContainsString('UNBOUNDED_TAIL', $text);
         self::assertStringNotContainsString(self::PRIVATE_METADATA, $text);
     }
@@ -220,6 +225,7 @@ final class BriefPacketTest extends WorkflowTestCase
             'role' => ['unknown_metadata' => self::PRIVATE_METADATA],
             'status' => ['unknown_metadata' => self::PRIVATE_METADATA],
             'finding' => ['unknown_metadata' => self::PRIVATE_METADATA],
+            'decision' => ['unknown_metadata' => self::PRIVATE_METADATA],
             'item' => $this->data,
         ];
         $this->put($this->data, $this->body);

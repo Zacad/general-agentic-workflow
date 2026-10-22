@@ -58,6 +58,7 @@ final class BriefCommand extends BaseCommand
     private function packet(Item $item, array $items, string $role): array
     {
         $parent = $item->parent !== null ? ($items[$item->parent] ?? null) : null;
+        $parentDesign = $parent?->section('Design') ?? '';
         // A delegation packet is not the persisted Item: new metadata must not
         // silently become role input, especially for an independent verifier.
         $packet = [
@@ -82,10 +83,14 @@ final class BriefCommand extends BaseCommand
             'upstream_artifacts' => $this->upstreamArtifacts($item, $items),
             'plan' => $item->section('Plan'),
             'design' => $item->section('Design'),
-            'parent_design' => $parent?->section('Design') ?? '',
+            'parent_design' => $parentDesign,
             'decisions' => $item->section('Decisions'),
             'deliverable_paths' => $item->owns,
         ];
+
+        if ($item->parent !== null) {
+            $packet['parent_design_present'] = trim($parentDesign) !== '';
+        }
 
         if ($role === 'explorer') {
             $packet['output_target'] = '.workflow/items/'.$item->id.'/outputs/';
@@ -93,13 +98,22 @@ final class BriefCommand extends BaseCommand
 
         if ($role !== 'verifier' && $item->lastResult !== null) {
             $receipt = $item->lastResult;
-            $packet['item']['last_result'] = [
+            $lastResult = [
                 'role' => in_array($receipt['role'] ?? null, ['orchestrator', 'explorer', 'worker', 'verifier'], true)
                     ? $receipt['role'] : '?',
                 'status' => in_array($receipt['status'] ?? null, ['done', 'blocked', 'needs-decision', 'failed'], true)
                     ? $receipt['status'] : '?',
                 'finding' => Text::truncate(is_string($receipt['finding'] ?? null) ? $receipt['finding'] : '', 100),
             ];
+
+            // The receipt's decision is sanctioned delegation input, unlike
+            // unknown receipt keys; omit the non-contractual "none" value.
+            $decision = is_string($receipt['decision'] ?? null) ? Text::truncate($receipt['decision'], 100) : '';
+            if ($decision !== '' && $decision !== 'none') {
+                $lastResult['decision'] = $decision;
+            }
+
+            $packet['item']['last_result'] = $lastResult;
         }
 
         return $packet;
@@ -167,6 +181,8 @@ final class BriefCommand extends BaseCommand
             foreach (preg_split('/\R/u', $packet['parent_design']) ?: [] as $line) {
                 $output->writeln('  '.$line);
             }
+        } elseif ($item['parent'] !== null) {
+            $output->writeln('<comment>warning: parent '.$item['parent'].' has no recorded Design; the canonical scope map is missing</comment>');
         }
 
         $output->writeln('design:');
@@ -211,12 +227,16 @@ final class BriefCommand extends BaseCommand
 
         if (isset($item['last_result'])) {
             $receipt = $item['last_result'];
-            $output->writeln(sprintf(
+            $line = sprintf(
                 'last result: %s · %s — %s',
                 $receipt['role'],
                 $receipt['status'],
                 $receipt['finding'],
-            ));
+            );
+            if (isset($receipt['decision'])) {
+                $line .= ' · decision: '.$receipt['decision'];
+            }
+            $output->writeln($line);
         }
 
         if ($role === 'verifier') {

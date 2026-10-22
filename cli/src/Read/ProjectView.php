@@ -71,11 +71,32 @@ final class ProjectView
     }
 
     /**
+     * Advisory parent-scope-map warnings for a ready child item.
+     *
+     * @param array<string, Item> $items
+     *
+     * @return list<string>
+     */
+    public function parentDesignWarnings(Item $item, array $items): array
+    {
+        if ($item->parent === null) {
+            return [];
+        }
+
+        $parent = $items[$item->parent] ?? null;
+        if ($parent === null || trim($parent->section('Design')) !== '') {
+            return [];
+        }
+
+        return ['parent '.$item->parent.' has no recorded Design (canonical scope map)'];
+    }
+
+    /**
      * Items that can start, with owned-path overlaps against active or other ready work.
      *
      * @param array<string, Item> $items
      *
-     * @return list<array{item: Item, overlaps: list<string>}>
+     * @return list<array{item: Item, overlaps: list<string>, warnings: list<string>}>
      */
     public function ready(array $items): array
     {
@@ -99,7 +120,7 @@ final class ProjectView
             }
             $overlaps = array_values(array_unique($overlaps));
             sort($overlaps, SORT_NATURAL);
-            $rows[] = ['item' => $item, 'overlaps' => $overlaps];
+            $rows[] = ['item' => $item, 'overlaps' => $overlaps, 'warnings' => $this->parentDesignWarnings($item, $items)];
         }
 
         usort($rows, static fn (array $a, array $b): int => $a['item']->id <=> $b['item']->id);

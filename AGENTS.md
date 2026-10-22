@@ -34,6 +34,22 @@ per-attempt directories or staged project copies. Never delete failed or
 cancelled history. Project decisions belong in PRD/Architecture; item decisions
 belong on the item.
 
+### Project documents
+
+PRD.md and Architecture.md are project documents, not item records: PRD carries
+product truth (purpose, users, goals, non-goals, requirements, product-level
+acceptance); Architecture carries system truth (shape, components, data and
+state, interfaces, testing, durable technical decisions). The orchestrator is
+the default writer; an item may explicitly own a document and then its owner
+writes it. Fill PRD.md before presenting the first epic for approval, refresh it
+at goal or non-goal changes and at each later epic's framing; fill
+Architecture.md when recording an epic Design, referencing Architecture rather
+than duplicating it. When a decision changes project-level facts, reconcile the
+documents; at epic close, sweep item records for durable facts left behind —
+documents stay editable after completion, and updating them is not reopening
+history. Epic approval is made against the current PRD; document updates do not
+change item scope and never invalidate approval or verification by themselves.
+
 Kinds: `epic` (no parent), `task` (epic parent, or standalone with a reason),
 `subtask` (task parent). Epics are containers without `owns`; children own
 deliverables. `depends_on` expresses ordering, not hierarchy. Ownership names
@@ -51,11 +67,31 @@ produces advisory warnings rather than new process gates.
 ## Scope, discovery and approval
 
 Frame outcome, scope in/out, acceptance criteria, dependencies and owned paths.
-For an epic include discovery and integration. Present actual records, not a
+For an epic include discovery and integration.
+
+Multi-phase or multi-goal projects are not one flat child chain. Structure them
+as one epic per phase (epics are standalone containers; `depends_on` orders
+phases) with the roadmap recorded in PRD.md, or as milestone groups named in the
+epic Design scope map. Non-functional and educational goals belong in framing
+like functional ones: state them in the outcome/PRD, and if a goal produces its
+own observable artifacts (ADR records, learning journal, benchmarks), frame it
+as its own child or thread it through phase acceptance — do not append it to a
+final packaging task.
+
+Present actual records, not a
 summary: `workflow review <epic>` gives the exact epic/descendant packet,
 including plans/designs and owned paths. For one standalone item show
 `workflow brief <id> --for orchestrator --json` to preserve exact lists/strings.
-Ask the user to confirm that packet before `workflow approve`.
+Ask the user to confirm that packet before `workflow approve`. Answers to
+questions, resolutions of the orchestrator's own doubts and silence are not
+approval. If user input changes the presented packet, re-present the updated
+packet in a separate turn and obtain an explicit confirmation of that packet —
+a literal yes/approve addressed to its current content — before
+`workflow approve`. The epic confirmation ask and the children confirmation ask
+are separate turns; never record any approval in the same conversational turn in
+which you received answers or scope changes. If the user raises new questions or
+objections after answering, pause affected work until they are resolved; 'no
+objection' and 'no further questions' are never approval.
 
 Approval is staged: approve the epic/discovery scope first; gather required
 independent evidence before framing implementation children (or justify no
@@ -64,13 +100,23 @@ means a separate explorer run, not a mandatory extra item. Discovery may be
 recorded on the epic; create a discovery task only for its own useful,
 independently acceptable outcome.
 
+Explorer dispatch is the only dispatch allowed without current approval:
+pre-approval discovery is legitimate when it informs the scope being approved,
+and the Plan should state which mode is used. Implementation work always
+requires current approval; never frame implementation children before approving
+the epic.
+
 Epic **Design owns the one canonical scope map**: dimensions, children,
 acceptance coverage, dependencies, owned paths, integration contract and open
 unknowns. Child designs reference the parent instead of copying the map.
-Include a coverage matrix and decomposition rationale: why these boundaries
-and sizes, and why subtasks were or were not useful. Later evidence may revise
-decomposition; review/reapprove only affected changed scopes, not an unchanged
-epic.
+Include a coverage matrix and a decomposition rationale that, for each child,
+names the finer split considered (if any) and why the chosen boundary beats it —
+not only why subtasks were or were not useful. 'No finer split exists' or 'the
+finer split fails one-writer/one-outcome' are valid answers; silence is not.
+The epic's `## Design` section is the durable map; record it before children are
+approved. An `outputs/` artifact is supporting evidence, not the durable map.
+Later evidence may revise decomposition; review/reapprove only affected changed
+scopes, not an unchanged epic.
 
 Approval covers only kind, parent, title, outcome, scope, acceptance and
 dependencies. `approve` prints those exact values with their scope hash.
@@ -106,7 +152,16 @@ uses an independent verifier. A deliberate `close --force --reason "..."`
 records an unverified exception, never verifier success; triviality is not an
 implicit exemption.
 
-Split independently acceptable deliverables, not steps. Use explorers for
+Split independently acceptable deliverables, not steps. A **deliverable** can
+be accepted or rejected on its own while siblings remain unfinished; a **step**
+only has value inside the whole. Pipeline nodes (fetch→select→verify→summarize→
+compose) are steps of one deliverable; an e-mail sender, an on-demand CLI entry
+point and a persisted history store are each deliverables. Prefer the smallest
+child that still has one independently acceptable outcome: a child is too coarse
+when its acceptance cannot be verified in one focused worker-and-verifier pass,
+or when it bundles two or more separately acceptable outcomes under one writer.
+In that case split by deliverable, or record the explicit broad-item reason.
+Bundling needs the same stated justification as splitting. Use explorers for
 missing evidence and subtasks only for parts with their own outcome/path.
 About three independent questions, 2,000 words or ten searches signal a sizing
 review, not a gate. A broad item needs an explicit reason; preserve one writer
@@ -145,8 +200,12 @@ user and pause only affected work.
 
 ## Verification and historical completion
 
-A successful verifier receipt establishes proof for its frozen target. For
-open items, tracked scope, Plan/Design/Decisions, owns or artifact-reference
+A successful verifier receipt establishes proof for its frozen target. A
+verifier `done` may carry recorded external-dependency limits plus a named
+follow-up only when the frozen outcome or acceptance explicitly approves the
+alternative branch; otherwise the verifier returns `blocked` and the force
+decision stays with the orchestrator. `close --force` is reserved for targets
+that could not be verified at all. For open items, tracked scope, Plan/Design/Decisions, owns or artifact-reference
 changes, producer receipts and non-done verifier receipts invalidate that
 proof. All supported routes entering `done` require current proof; only an
 explicit forced close records an exception. Force does not bypass structure

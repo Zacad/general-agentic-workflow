@@ -36,6 +36,7 @@ final class DecideCommand extends BaseCommand
         });
 
         $output->writeln(sprintf('Decision recorded for %s', $id));
+        $output->writeln('Decision recorded. If this changes project-level facts, reconcile .workflow/PRD.md or .workflow/Architecture.md now.');
 
         return self::SUCCESS;
     }

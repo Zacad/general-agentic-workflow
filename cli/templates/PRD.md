@@ -1,3 +1,4 @@
+<!-- workflow:unfilled-template -->
 # {{PROJECT}} — product requirements
 
 Created {{DATE}}. Replace the placeholders; keep this short.

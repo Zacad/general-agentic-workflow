@@ -8,6 +8,7 @@ use Workflow\Domain\FrontMatter;
 use Workflow\Domain\InvalidItemException;
 use Workflow\Domain\Item;
 use Workflow\Domain\ItemLifecycle;
+use Workflow\Read\ProjectDocuments;
 use Workflow\Store\ItemStore;
 
 final class ItemValidator
@@ -73,8 +74,12 @@ final class ItemValidator
         $this->validateApprovals($items, $result);
         $this->validatePlans($items, $result);
         $this->validateDesigns($items, $result);
+        $this->validateParentDesigns($items, $result);
+        $this->validateDiscoveryOrder($items, $result);
+        $this->validateProjectDocuments($items, $result);
         $this->validateSections($items, $result);
         $this->validateArtifacts($items, $result);
+        $this->validateArtifactOwnership($items, $result);
         $this->validateOwnership($items, $result);
 
         return $result;
@@ -115,6 +120,14 @@ final class ItemValidator
                 }
             } elseif ($item->hasStaleApproval()) {
                 $result->error(sprintf('%s: approval is stale (scope changed); run "workflow approve %s".', $item->id, $item->id));
+            }
+
+            if ($item->approval !== null && $item->status->isOpen()
+                && trim((string) ($item->approval->confirmation ?? '')) === '') {
+                $result->warning(sprintf(
+                    '%s: approval has no recorded confirmation quote — approval must be explicit user confirmation.',
+                    $item->id,
+                ));
             }
 
             if ($item->status->value === 'done' && $item->verifiedAt === null) {
@@ -196,6 +209,200 @@ final class ItemValidator
                 $item->phase->value,
                 $item->id,
             ));
+        }
+    }
+
+    /**
+     * Children approved or dispatched without a parent scope map lose the
+     * canonical decomposition record; advisory only.
+     *
+     * @param array<string, Item> $items
+     */
+    private function validateParentDesigns(array $items, ValidationResult $result): void
+    {
+        foreach ($items as $item) {
+            if (!in_array($item->status->value, ['todo', 'in-progress'], true) || $item->parent === null) {
+                continue;
+            }
+
+            $parent = $items[$item->parent] ?? null;
+            if ($parent !== null && trim($parent->section('Design')) === '') {
+                $result->warning(sprintf(
+                    '%s: parent %s has no recorded Design (canonical scope map).',
+                    $item->id,
+                    $item->parent,
+                ));
+            }
+        }
+    }
+
+    /**
+     * Pre-approval discovery is legitimate, but evidence recorded as an
+     * explorer receipt after the approval timestamp suggests the packet was
+     * approved before the evidence existed.
+     *
+     * @param array<string, Item> $items
+     */
+    private function validateDiscoveryOrder(array $items, ValidationResult $result): void
+    {
+        foreach ($items as $item) {
+            $approvedAt = self::isoTimestamp($item->approval?->at);
+            if ($approvedAt === null) {
+                continue;
+            }
+
+            if (preg_match_all('/^- ([^ \n]+) · explorer · ([a-z-]+)$/m', $item->section('Progress'), $matches) === 0) {
+                continue;
+            }
+
+            foreach ($matches[1] as $index => $timestamp) {
+                $receiptAt = self::isoTimestamp($timestamp);
+                if ($receiptAt === null) {
+                    continue;
+                }
+                if ($receiptAt < $approvedAt) {
+                    $result->warning(sprintf(
+                        '%s: explorer receipt predates approval (%s); discovery ran before the epic was approved.',
+                        $item->id,
+                        $timestamp,
+                    ));
+                }
+            }
+        }
+    }
+
+    /**
+     * Template-state project documents with recorded epics: advisory only.
+     * Missing documents keep their pre-existing unconditional warning.
+     *
+     * @param array<string, Item> $items
+     */
+    private function validateProjectDocuments(array $items, ValidationResult $result): void
+    {
+        $epics = [];
+        foreach ($items as $item) {
+            if ($item->kind->value === 'epic' && $item->status->value !== 'cancelled') {
+                $epics[] = $item->id;
+            }
+        }
+
+        if ($epics === []) {
+            return;
+        }
+
+        $documents = new ProjectDocuments($this->store->root());
+        foreach ([
+            'PRD.md' => "before the first epic's scope approval",
+            'Architecture.md' => 'at epic design',
+        ] as $document => $moment) {
+            if ($documents->state($document) === 'template') {
+                $result->warning(sprintf(
+                    '.workflow/%s still contains template placeholders; record product truth there (fill moment: %s; epics: %s).',
+                    $document,
+                    $moment,
+                    implode(', ', $epics),
+                ));
+            }
+        }
+    }
+
+    /**
+     * A worker receipt naming artifacts outside the item's owns paths: the
+     * written deliverable may be untracked ownership. Advisory only; missing
+     * artifacts stay with validateArtifacts.
+     *
+     * @param array<string, Item> $items
+     */
+    private function validateArtifactOwnership(array $items, ValidationResult $result): void
+    {
+        foreach ($items as $item) {
+            if (!in_array($item->status->value, ['todo', 'in-progress'], true)) {
+                continue;
+            }
+            if (($item->lastResult['role'] ?? null) !== 'worker') {
+                continue;
+            }
+
+            foreach ($item->artifacts as $artifact) {
+                $relative = $this->projectArtifact($artifact, $item);
+                if ($relative === null) {
+                    continue;
+                }
+
+                $covered = false;
+                foreach ($item->owns as $owned) {
+                    if (self::pathsOverlap($relative, $owned)) {
+                        $covered = true;
+                        break;
+                    }
+                }
+
+                if (!$covered) {
+                    $result->warning(sprintf(
+                        '%s: artifact %s is outside owns (was it written? add to owns via set, or correct the artifact).',
+                        $item->id,
+                        $artifact,
+                    ));
+                }
+            }
+        }
+    }
+
+    /**
+     * Resolve a non-URL artifact to a project-root-relative path it actually
+     * names, excluding .workflow content (outputs and records are internal).
+     * Unresolvable paths return null; existence is a separate diagnostic.
+     */
+    private function projectArtifact(string $artifact, Item $item): ?string
+    {
+        if ($artifact === ''
+            || str_starts_with($artifact, 'http://')
+            || str_starts_with($artifact, 'https://')) {
+            return null;
+        }
+
+        $root = rtrim($this->store->root(), '/').'/';
+        $normalized = ltrim($artifact, '/');
+        $candidates = [
+            $root.$normalized,
+            rtrim($this->store->workflowDir(), '/').'/'.$normalized,
+            rtrim($this->store->itemsDir().'/'.$item->id, '/').'/'.$normalized,
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (!file_exists($candidate) || !str_starts_with($candidate, $root)) {
+                continue;
+            }
+
+            $relative = substr($candidate, strlen($root));
+            if ($relative === '' || $relative === '.workflow' || str_starts_with($relative, '.workflow/')) {
+                return null;
+            }
+
+            return $relative;
+        }
+
+        return null;
+    }
+
+    /**
+     * Strict ISO-8601 timestamps only; malformed input compares never.
+     *
+     * @return int|null Unix timestamp, or null when the value is not ISO.
+     */
+    private static function isoTimestamp(?string $value): ?int
+    {
+        if ($value === null || preg_match(
+            '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/',
+            trim($value),
+        ) !== 1) {
+            return null;
+        }
+
+        try {
+            return (int) (new \DateTimeImmutable(trim($value)))->format('U');
+        } catch (\Exception) {
+            return null;
         }
     }
 

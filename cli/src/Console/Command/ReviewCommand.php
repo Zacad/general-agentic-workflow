@@ -10,6 +10,7 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Workflow\Domain\Item;
 use Workflow\Domain\Kind;
+use Workflow\Read\ProjectDocuments;
 use Workflow\Support\ScopeOutput;
 
 final class ReviewCommand extends BaseCommand
@@ -68,6 +69,7 @@ final class ReviewCommand extends BaseCommand
             'epic' => $this->packet($epic),
             'descendants' => array_map($this->packet(...), $descendants),
             'counts' => ['tasks' => $tasks, 'subtasks' => $subtasks, 'open' => $open],
+            'prd' => $this->prd($input),
         ];
         if ($input->getOption('json')) {
             $this->writeJson($output, $packet);
@@ -77,6 +79,7 @@ final class ReviewCommand extends BaseCommand
 
         $output->writeln(sprintf('%s · %s', $epic->id, ScopeOutput::literal($epic->title)), OutputInterface::OUTPUT_RAW);
         $this->printItem($packet['epic'], $output);
+        $this->printPrd($packet['prd'], $output);
         $output->writeln('');
         $output->writeln('## Decomposition');
         if ($packet['descendants'] === []) {
@@ -135,7 +138,35 @@ final class ReviewCommand extends BaseCommand
             'approval_state' => $this->approvalLabel($item),
             'plan' => $item->section('Plan'),
             'design' => $item->section('Design'),
+            'decisions' => $item->section('Decisions'),
         ];
+    }
+
+    /**
+     * Bounded product-truth context for the approval decision.
+     *
+     * @return array{state: string, goals: string, non_goals: string}
+     */
+    private function prd(InputInterface $input): array
+    {
+        return (new ProjectDocuments($this->projectRoot($input)))->prdExcerpt();
+    }
+
+    /**
+     * @param array{state: string, goals: string, non_goals: string} $prd
+     */
+    private function printPrd(array $prd, OutputInterface $output): void
+    {
+        $output->writeln('PRD .workflow/PRD.md: '.$prd['state'], OutputInterface::OUTPUT_RAW);
+        foreach (['goals' => $prd['goals'], 'non-goals' => $prd['non_goals']] as $label => $text) {
+            if ($text === '') {
+                continue;
+            }
+            $output->writeln($label.':', OutputInterface::OUTPUT_RAW);
+            foreach (preg_split('/\R/u', $text) ?: [] as $line) {
+                $output->writeln('  '.$line, OutputInterface::OUTPUT_RAW);
+            }
+        }
     }
 
     /**
@@ -160,7 +191,7 @@ final class ReviewCommand extends BaseCommand
             $item['design'] !== '' ? 'written' : 'missing',
         ));
 
-        foreach (['plan', 'design'] as $section) {
+        foreach (['plan', 'design', 'decisions'] as $section) {
             $text = $item[$section];
             if ($text === '') {
                 continue;

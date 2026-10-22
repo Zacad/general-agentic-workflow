@@ -231,4 +231,148 @@ final class ItemValidatorTest extends WorkflowTestCase
 
         self::assertStringNotContainsString('artifact not found', implode("\n", $result->warnings));
     }
+
+    public function testTemplateDocumentsWarnOnlyWhenAnEpicExists(): void
+    {
+        $workflow = $this->store->workflowDir();
+        // Marker-only copy (new scaffold) and a legacy copy without the marker.
+        file_put_contents($workflow.'/PRD.md', "<!-- workflow:unfilled-template -->\n# PRD\n\n## Goals\n\n1. ...\n");
+        file_put_contents($workflow.'/Architecture.md', "# Architecture\n\nReplace the placeholders.\n");
+
+        $this->store->create($this->make('T-001', Kind::Task));
+        $warnings = implode("\n", (new ItemValidator($this->store))->validate()->warnings);
+        self::assertStringNotContainsString('template placeholders', $warnings);
+
+        $this->store->create($this->make('E-001', Kind::Epic));
+        $warnings = implode("\n", (new ItemValidator($this->store))->validate()->warnings);
+        self::assertStringContainsString(
+            '.workflow/PRD.md still contains template placeholders; record product truth there'
+            ." (fill moment: before the first epic's scope approval; epics: E-001).",
+            $warnings,
+        );
+        self::assertStringContainsString(
+            '.workflow/Architecture.md still contains template placeholders; record product truth there'
+            .' (fill moment: at epic design; epics: E-001).',
+            $warnings,
+        );
+
+        // Filled documents are silent, including with epics present.
+        file_put_contents($workflow.'/PRD.md', "# PRD\n\nFilled truth.\n\n## Goals\n\n1. Ship.\n");
+        file_put_contents($workflow.'/Architecture.md', "# Architecture\n\nFilled shape.\n");
+        $warnings = implode("\n", (new ItemValidator($this->store))->validate()->warnings);
+        self::assertStringNotContainsString('template placeholders', $warnings);
+    }
+
+    public function testCancelledEpicsDoNotTriggerTemplateDocumentWarnings(): void
+    {
+        $cancelled = $this->make('E-001', Kind::Epic);
+        $cancelled->status = Status::Cancelled;
+        $this->store->create($cancelled);
+
+        $warnings = implode("\n", (new ItemValidator($this->store))->validate()->warnings);
+
+        self::assertStringNotContainsString('template placeholders', $warnings);
+    }
+
+    public function testExplorerReceiptPredatingApprovalIsWarned(): void
+    {
+        $item = $this->make('E-001', Kind::Epic);
+        $item->approval = new Approval('2026-01-01T00:00:00+00:00', 'test', $item->scopeHash());
+        $item->body = "## Plan\n\n## Progress\n\n"
+            ."- 2025-12-31T23:59:59+00:00 · explorer · done\n  Finding: Early evidence.\n\n"
+            ."- not-an-iso-date · explorer · done\n  Finding: Unparsed timestamps never compare.\n";
+        $this->store->create($item);
+
+        $warnings = implode("\n", (new ItemValidator($this->store))->validate()->warnings);
+
+        self::assertStringContainsString(
+            'E-001: explorer receipt predates approval (2025-12-31T23:59:59+00:00); discovery ran before the epic was approved.',
+            $warnings,
+        );
+        self::assertSame(1, substr_count($warnings, 'explorer receipt predates approval'));
+    }
+
+    public function testExplorerReceiptAfterApprovalIsSilent(): void
+    {
+        $item = $this->make('E-001', Kind::Epic);
+        $item->body = "## Plan\n\n## Progress\n\n- 2026-01-01T00:00:01+00:00 · explorer · done\n  Finding: Later evidence.\n";
+        $this->store->create($item);
+
+        $warnings = implode("\n", (new ItemValidator($this->store))->validate()->warnings);
+
+        self::assertStringNotContainsString('explorer receipt predates approval', $warnings);
+    }
+
+    public function testOpenChildWithoutParentDesignIsWarned(): void
+    {
+        $this->store->create($this->make('E-001', Kind::Epic));
+        $this->store->create($this->make('T-001', Kind::Task, 'E-001'));
+
+        $warnings = implode("\n", (new ItemValidator($this->store))->validate()->warnings);
+        self::assertStringContainsString('T-001: parent E-001 has no recorded Design (canonical scope map).', $warnings);
+
+        $epic = $this->store->load('E-001');
+        $epic->body = "## Plan\n\n## Design\n\nScope map: T-001.\n\n## Progress\n";
+        $this->store->save($epic);
+
+        $warnings = implode("\n", (new ItemValidator($this->store))->validate()->warnings);
+        self::assertStringNotContainsString('no recorded Design', $warnings);
+    }
+
+    public function testWorkerArtifactsOutsideOwnsAreWarnedAndOtherRolesAreNot(): void
+    {
+        mkdir($this->root.'/src', 0777, true);
+        file_put_contents($this->root.'/src/deliverable.md', 'owned work');
+        file_put_contents($this->root.'/stray.md', 'unowned work');
+        $outputDirectory = $this->store->itemsDir().'/T-001/outputs';
+        mkdir($outputDirectory, 0777, true);
+        file_put_contents($outputDirectory.'/evidence.md', 'evidence');
+
+        $item = $this->make('T-001', Kind::Task);
+        $item->status = Status::InProgress;
+        $item->owns = ['src/'];
+        $item->artifacts = [
+            'src/deliverable.md',
+            'stray.md',
+            '.workflow/items/T-001/outputs/evidence.md',
+            'https://example.test/report',
+        ];
+        $item->lastResult = [
+            'at' => '2026-01-01T00:00:00+00:00', 'role' => 'worker', 'status' => 'done', 'finding' => 'Worked.',
+        ];
+        $this->store->create($item);
+
+        $warnings = implode("\n", (new ItemValidator($this->store))->validate()->warnings);
+        self::assertStringContainsString(
+            'T-001: artifact stray.md is outside owns (was it written? add to owns via set, or correct the artifact).',
+            $warnings,
+        );
+        self::assertStringNotContainsString('src/deliverable.md is outside owns', $warnings);
+        self::assertStringNotContainsString('evidence.md is outside owns', $warnings);
+
+        // A non-producer artifact reference is upstream evidence, not a write.
+        $item->lastResult['role'] = 'explorer';
+        $this->store->save($item);
+
+        $warnings = implode("\n", (new ItemValidator($this->store))->validate()->warnings);
+        self::assertStringNotContainsString('outside owns', $warnings);
+    }
+
+    public function testOpenApprovalWithoutConfirmationQuoteIsWarned(): void
+    {
+        $item = $this->make('T-001', Kind::Task);
+        $this->store->create($item);
+
+        $warnings = implode("\n", (new ItemValidator($this->store))->validate()->warnings);
+        self::assertStringContainsString(
+            'T-001: approval has no recorded confirmation quote — approval must be explicit user confirmation.',
+            $warnings,
+        );
+
+        $item->approval = new Approval($item->approval->at, 'test', $item->scopeHash(), 'Yes, approve this scope.');
+        $this->store->save($item);
+
+        $warnings = implode("\n", (new ItemValidator($this->store))->validate()->warnings);
+        self::assertStringNotContainsString('no recorded confirmation quote', $warnings);
+    }
 }

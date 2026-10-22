@@ -1,3 +1,4 @@
+<!-- workflow:unfilled-template -->
 # {{PROJECT}} — architecture
 
 Created {{DATE}}. Replace the placeholders; record only decisions that matter.

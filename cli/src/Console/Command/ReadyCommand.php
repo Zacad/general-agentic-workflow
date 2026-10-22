@@ -38,6 +38,7 @@ final class ReadyCommand extends BaseCommand
                 'depends_on' => $row['item']->dependsOn,
                 'owns' => $row['item']->owns,
                 'overlaps' => $row['overlaps'],
+                'warnings' => $row['warnings'],
             ], $rows));
 
             return self::SUCCESS;
@@ -61,6 +62,9 @@ final class ReadyCommand extends BaseCommand
                 $suffix .= '  overlap:'.implode(',', $row['overlaps']);
             }
             $output->writeln(sprintf('%-7s %s  %s', $item->id, Text::truncate($item->title, 60), $suffix));
+            foreach ($row['warnings'] as $warning) {
+                $output->writeln('<comment>warning: '.$item->id.' '.$warning.'</comment>');
+            }
         }
 
         if (count($rows) > count($shown)) {

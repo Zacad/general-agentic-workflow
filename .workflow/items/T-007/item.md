@@ -24,7 +24,7 @@ last_result:
   decision: null
 verified_at: '2026-10-20T16:39:42+00:00'
 created: '2026-10-20T16:28:29+00:00'
-updated: '2026-10-20T17:26:13+00:00'
+updated: '2026-10-22T07:43:17+00:00'
 outcome: 'A comparison report in docs/pilot-compare-3.md measures the v5 pilot against attempts 1 and 2 on cost, time, roles, records, sourcing and rework, with stated confidence and limits.'
 scope:
   in:
@@ -132,6 +132,8 @@ Derived: cost per 1,000 guide words $0.062 / $0.147 / $0.174; cost per combined 
 
 - 2026-10-20T16:39:42+00:00 · closed as done
   Reason: Comparison report verified against acceptance 1-6.
+
+- 2026-10-22T07:43:17+00:00 · User deliberately removed docs/pilot-compare-3.md and docs/handoff-compare-3.md on 2026-10-22: 'no longer needed'. Recorded as a non-material note; the owned-artifact references remain in the historical record and validate's advisory warning reflects the true state (files absent). No item content changed.
 
 ## Decisions
 

@@ -22,6 +22,11 @@ target paths and an assigned verification-artifact path.
 4. Record per criterion: expected, observed, method, environment, result
    (`pass`, `fail`, `unrun`, `blocked`) and limits. Distinguish unavailable checks
    from failures; do not install, repair or mutate the target to make it pass.
+   When a criterion's live branch is blocked by an external dependency
+   (credential, service), record that part as `blocked` with the limit; return
+   `done` only when the frozen outcome or acceptance explicitly approves the
+   alternative branch, naming the bounded follow-up in your receipt's `next` —
+   otherwise return `blocked` and leave the force decision to the orchestrator.
 5. Preserve failed targets. A repaired open target needs a new check; material
    completed-item work needs the explicit follow-up defined in AGENTS. No content
    fingerprint machinery guarantees a same-path freeze.

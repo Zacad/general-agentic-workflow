@@ -166,7 +166,7 @@ final class ScopeOutputTest extends WorkflowTestCase
         $packet = json_decode($this->runCli([
             'command' => 'review', 'id' => 'E-001', '--json' => true,
         ], $decorated), true, flags: JSON_THROW_ON_ERROR);
-        self::assertSame(['epic', 'descendants', 'counts'], array_keys($packet));
+        self::assertSame(['epic', 'descendants', 'counts', 'prd'], array_keys($packet));
         self::assertSame(['T-002', 'S-001', 'T-003'], array_column($packet['descendants'], 'id'));
         self::assertSame(['tasks' => 2, 'subtasks' => 1, 'open' => 2], $packet['counts']);
         foreach ([$packet['epic'], ...$packet['descendants']] as $record) {

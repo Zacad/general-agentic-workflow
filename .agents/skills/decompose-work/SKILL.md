@@ -14,7 +14,13 @@ policy; use this procedure to choose boundaries, not to add process gates.
 1. Compare plausible boundaries, including **no split**. A child needs an
    observable outcome that can be accepted/rejected without finishing siblings,
    its own scope/path and a meaningful failure boundary. Files, phases and
-   meetings are not independently useful outcomes by themselves.
+   meetings are not independently useful outcomes by themselves. Apply the
+   boundedness test before drafting children: can a verifier check this child's
+   acceptance in one focused worker-and-verifier pass, and does it bundle more
+   than one independently acceptable outcome? If either fails, propose the
+   finer split or record the explicit broad-item reason in the rationale —
+   pipeline nodes are steps of one deliverable; separately acceptable modules
+   (delivery, CLI, history) are each deliverables.
 2. Separate missing evidence from deliverables. Assign one bounded explorer
    question per independent dimension, with sources, stop condition and a
    repository-relative `.workflow/items/<ID>/outputs/` target. Discovery may run
@@ -26,9 +32,10 @@ policy; use this procedure to choose boundaries, not to add process gates.
 4. Draft the next useful children and use `depends_on` for ordering. Choose
    subtasks only for independently acceptable parts under a task; otherwise
    retain one deliverable and one writer, adding evidence questions as needed.
-5. Record why these boundaries and sizes beat the alternatives, why subtasks
-   were/weren't useful, and explicit triggers for deferred work. Unexplored is
-   not deferred. Apply AGENTS' sizing signals as judgment, not hard thresholds.
+5. Record, per child, why these boundaries beat the finer alternative
+   considered, why subtasks were/weren't useful, and explicit triggers for
+   deferred work. Unexplored is not deferred. Apply AGENTS' sizing signals as
+   judgment, not hard thresholds.
 6. Present exact new child records after evidence. Later evidence may revise
    the map; identify affected scope changes for review without reapproving
    unchanged records. Do not rewrite completed history to fit a new map.

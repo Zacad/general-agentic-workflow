@@ -20,7 +20,10 @@ for interface work.
 - Inspect existing/concurrent work before editing. Implement the agreed design
   with the smallest coherent change and the project's conventions.
 - Change only owned paths, not item records/approvals or another writer's work.
-  Project PRD/Architecture may be deliverables when explicitly owned.
+  Owns must cover every file you will create, including tests and fixtures; if
+  implementation requires a path outside owns, return `needs-decision` (or
+  surface the extra write explicitly in the receipt) rather than writing
+  silently. Project PRD/Architecture may be deliverables when explicitly owned.
 - Run proportionate checks; report commands, actual results and unrun limits.
   Freeze named target paths and reproducible checks for the independent verifier.
 - Keep caches, build output and dependency/vendor noise out of owned deliverables

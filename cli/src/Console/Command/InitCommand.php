@@ -40,6 +40,7 @@ final class InitCommand extends BaseCommand
         foreach ($created as $path) {
             $output->writeln('  created '.$path);
         }
+        $output->writeln('Fill .workflow/PRD.md before framing the first epic; fill .workflow/Architecture.md at epic design.');
 
         return self::SUCCESS;
     }

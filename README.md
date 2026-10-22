@@ -30,6 +30,15 @@ demo="$(mktemp -d "${TMPDIR:-/tmp/opencode}/workflow-demo.XXXXXX")"
 workflow --project "$demo" init --name "Greeting demo"
 cd "$demo"
 
+# Record product truth before framing the first epic:
+cat > .workflow/PRD.md <<'EOF'
+# Greeting demo — product requirements
+
+Purpose: demo the record flow with one fixed greeting note.
+Goal: the note contains exactly hello and a newline.
+Non-goals: application code, templating.
+EOF
+
 workflow new "Greeting example" --kind epic \
   --outcome "One greeting note is delivered and independently checked."
 workflow set E-001 'scope_in=One greeting note' 'scope_out=Application code' \
@@ -45,6 +54,12 @@ workflow new "Write greeting" --kind task --parent E-001 \
 workflow set T-001 'scope_in=The greeting note' 'scope_out=Other files' \
   'acceptance=The note contains exactly hello and a newline'
 workflow plan T-001 --text "Use the fixed greeting requirement; no exploration needed; stop when exact bytes pass."
+# Record system truth when recording the epic Design:
+cat > .workflow/Architecture.md <<'EOF'
+# Greeting demo — architecture
+
+The CLI owns the records; the owned output note is the sole deliverable.
+EOF
 workflow design E-001 --text "Scope map: T-001 owns .workflow/items/T-001/outputs/greeting.txt, covers the sole criterion, has no dependencies; integrate by checking exact bytes. One task, no subtasks: one independently acceptable note. No open risks."
 workflow design T-001 --text "Follow parent Design; write hello plus newline at the owned path; check with cmp. No open risks." --phase design
 workflow review E-001

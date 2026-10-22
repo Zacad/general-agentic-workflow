@@ -25,23 +25,30 @@ final class ApproveCommand extends BaseCommand
     {
         $this->setDescription('Record approval of the current item scope.')
             ->addArgument('id', InputArgument::REQUIRED, 'Item ID.')
-            ->addOption('by', null, InputOption::VALUE_REQUIRED, 'Who approved.', 'user')
+            ->addOption('by', null, InputOption::VALUE_REQUIRED, 'Who approved; "unspecified" when omitted.')
+            ->addOption('confirmation', null, InputOption::VALUE_REQUIRED, 'Recorded user confirmation quote for this approval.')
             ->addOption('json', null, InputOption::VALUE_NONE, 'Emit JSON.');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $id = (string) $input->getArgument('id');
-        $by = (string) $input->getOption('by');
+        $by = trim((string) $input->getOption('by'));
+        if ($by === '') {
+            // Bare approval must not fabricate an approver name.
+            $by = 'unspecified';
+        }
+        $confirmation = trim((string) $input->getOption('confirmation'));
+        $at = Clock::now();
 
-        $result = $this->store($input)->mutate($id, function (Item $item) use ($by): array {
+        $result = $this->store($input)->mutate($id, function (Item $item) use ($by, $confirmation, $at): array {
             $hash = $item->scopeHash();
-            $item->approval = new Approval(Clock::now(), $by, $hash);
+            $item->approval = new Approval($at, $by, $hash, $confirmation !== '' ? $confirmation : null);
             if ($item->status === Status::Draft) {
                 $item->status = Status::Todo;
             }
 
-            return [
+            $result = [
                 'id' => $item->id,
                 'by' => $item->approval->by,
                 'scope_hash' => $hash,
@@ -49,6 +56,11 @@ final class ApproveCommand extends BaseCommand
                 ...ScopeOutput::scope($item),
                 'owns' => $item->owns,
             ];
+            if ($item->approval->confirmation !== null) {
+                $result['confirmation'] = $item->approval->confirmation;
+            }
+
+            return $result;
         });
         $this->refreshBoard($input, $output);
 
@@ -66,6 +78,13 @@ final class ApproveCommand extends BaseCommand
         ScopeOutput::write($output, $result, $result['owns']);
         $output->writeln('hash: '.$result['scope_hash']);
         $output->writeln('status: '.$result['status']);
+        $output->writeln(sprintf(
+            'Recorded approval by %s at %s — this certifies an explicit user confirmation of hash %s; if confirmation was implicit, record it via workflow log %s.',
+            ScopeOutput::literal($result['by']),
+            $at,
+            $result['scope_hash'],
+            $result['id'],
+        ), OutputInterface::OUTPUT_RAW);
 
         return self::SUCCESS;
     }

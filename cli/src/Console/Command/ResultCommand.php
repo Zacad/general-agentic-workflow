@@ -69,6 +69,7 @@ final class ResultCommand extends BaseCommand
 
         $decision = trim((string) $input->getOption('decision'));
         $next = trim((string) $input->getOption('next'));
+        $id = (string) $input->getArgument('id');
         $at = Clock::now();
 
         $store = $this->store($input);
@@ -78,7 +79,7 @@ final class ResultCommand extends BaseCommand
             .'  Decision: '.($decision !== '' ? $decision : 'none')."\n"
             .'  Next: '.($next !== '' ? $next : 'none');
         try {
-            $store->recordReceipt((string) $input->getArgument('id'), [
+            $store->recordReceipt($id, [
                 'at' => $at,
                 'role' => $role,
                 'status' => $status,
@@ -92,12 +93,15 @@ final class ResultCommand extends BaseCommand
         }
 
         if ($input->getOption('json')) {
-            $this->writeJson($output, ['id' => $input->getArgument('id'), 'role' => $role, 'status' => $status, 'at' => $at]);
+            $this->writeJson($output, ['id' => $id, 'role' => $role, 'status' => $status, 'at' => $at]);
 
             return self::SUCCESS;
         }
 
-        $output->writeln(sprintf('%s result recorded: %s · %s', $input->getArgument('id'), $role, $status));
+        $output->writeln(sprintf('%s result recorded: %s · %s', $id, $role, $status));
+        if ($decision !== '' && $decision !== 'none') {
+            $output->writeln('Decision noted on receipt — if the user resolved this, also run: workflow decide '.$id);
+        }
 
         return self::SUCCESS;
     }

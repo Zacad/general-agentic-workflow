@@ -732,4 +732,216 @@ final class CommandTest extends WorkflowTestCase
         self::assertStringContainsString('## Plan appears 2 times', $output);
         self::assertStringContainsString('unexpected top-level heading "## 1. Not a section"', $output);
     }
+
+    public function testInitAdvisesFillingTheProjectDocuments(): void
+    {
+        [$exit, $output] = $this->runCli(['command' => 'init', '--name' => 'test']);
+        self::assertSame(0, $exit);
+        self::assertStringContainsString(
+            'Fill .workflow/PRD.md before framing the first epic; fill .workflow/Architecture.md at epic design.',
+            $output,
+        );
+    }
+
+    public function testBriefMarksParentDesignPresenceAndCarriesTheReceiptDecision(): void
+    {
+        $this->runCli(['command' => 'init', '--name' => 'test']);
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'Epic', '--kind' => 'epic']);
+        $epic = $this->idFrom($output);
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'Task', '--kind' => 'task', '--parent' => $epic]);
+        $task = $this->idFrom($output);
+
+        [$exit, $json] = $this->runCli(['command' => 'brief', 'id' => $task, '--json' => true]);
+        self::assertSame(0, $exit);
+        $packet = json_decode($json, true, flags: JSON_THROW_ON_ERROR);
+        self::assertFalse($packet['parent_design_present']);
+
+        [, $text] = $this->runCli(['command' => 'brief', 'id' => $task]);
+        self::assertStringContainsString(
+            'warning: parent '.$epic.' has no recorded Design; the canonical scope map is missing',
+            $text,
+        );
+
+        $this->runCli(['command' => 'design', 'id' => $epic, '--text' => 'Scope map.']);
+        [$exit, $json] = $this->runCli(['command' => 'brief', 'id' => $task, '--json' => true]);
+        self::assertSame(0, $exit);
+        $packet = json_decode($json, true, flags: JSON_THROW_ON_ERROR);
+        self::assertTrue($packet['parent_design_present']);
+        [, $text] = $this->runCli(['command' => 'brief', 'id' => $task]);
+        self::assertStringNotContainsString('no recorded Design', $text);
+    }
+
+    public function testBriefOmitsParentDesignFieldWithoutAParentAndAddsReceiptDecisionForNonVerifiers(): void
+    {
+        $this->runCli(['command' => 'init', '--name' => 'test']);
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'Solo', '--kind' => 'task']);
+        $id = $this->idFrom($output);
+        $this->runCli(['command' => 'result', 'id' => $id, '--status' => 'needs-decision', '--finding' => 'Question.', '--decision' => "Pick a format\nsecond line"]);
+
+        [$exit, $json] = $this->runCli(['command' => 'brief', 'id' => $id, '--json' => true]);
+        self::assertSame(0, $exit);
+        $packet = json_decode($json, true, flags: JSON_THROW_ON_ERROR);
+        self::assertArrayNotHasKey('parent_design_present', $packet);
+        self::assertSame('Pick a format second line', $packet['item']['last_result']['decision']);
+
+        [, $text] = $this->runCli(['command' => 'brief', 'id' => $id]);
+        self::assertStringContainsString('Pick a format', $text);
+
+        [$exit, $json] = $this->runCli(['command' => 'brief', 'id' => $id, '--for' => 'verifier', '--json' => true]);
+        self::assertSame(0, $exit);
+        $packet = json_decode($json, true, flags: JSON_THROW_ON_ERROR);
+        self::assertArrayNotHasKey('last_result', $packet['item']);
+    }
+
+    public function testBriefOmitsNoneDecisions(): void
+    {
+        $this->runCli(['command' => 'init', '--name' => 'test']);
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'Solo', '--kind' => 'task']);
+        $id = $this->idFrom($output);
+        $this->runCli(['command' => 'result', 'id' => $id, '--status' => 'done', '--finding' => 'Fine.', '--decision' => 'none']);
+
+        [$exit, $json] = $this->runCli(['command' => 'brief', 'id' => $id, '--json' => true]);
+        self::assertSame(0, $exit);
+        $packet = json_decode($json, true, flags: JSON_THROW_ON_ERROR);
+        self::assertArrayNotHasKey('decision', $packet['item']['last_result']);
+    }
+
+    public function testReadyReportsMissingParentDesignWarnings(): void
+    {
+        $this->runCli(['command' => 'init', '--name' => 'test']);
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'Epic', '--kind' => 'epic']);
+        $epic = $this->idFrom($output);
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'Task', '--kind' => 'task', '--parent' => $epic]);
+        $task = $this->idFrom($output);
+        $this->runCli(['command' => 'approve', 'id' => $task]);
+
+        [$exit, $json] = $this->runCli(['command' => 'ready', '--json' => true]);
+        self::assertSame(0, $exit);
+        $rows = array_column(json_decode($json, true, flags: JSON_THROW_ON_ERROR), null, 'id');
+        self::assertSame(
+            ['parent '.$epic.' has no recorded Design (canonical scope map)'],
+            $rows[$task]['warnings'],
+        );
+
+        [, $text] = $this->runCli(['command' => 'ready']);
+        self::assertStringContainsString('warning: '.$task.' parent '.$epic.' has no recorded Design (canonical scope map)', $text);
+
+        $this->runCli(['command' => 'design', 'id' => $epic, '--text' => 'Scope map.']);
+        [$exit, $json] = $this->runCli(['command' => 'ready', '--json' => true]);
+        self::assertSame(0, $exit);
+        $rows = array_column(json_decode($json, true, flags: JSON_THROW_ON_ERROR), null, 'id');
+        self::assertSame([], $rows[$task]['warnings']);
+    }
+
+    public function testReviewPacketIncludesDecisionsAndBoundedPrdExcerpt(): void
+    {
+        $this->runCli(['command' => 'init', '--name' => 'test']);
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'Epic', '--kind' => 'epic']);
+        $epic = $this->idFrom($output);
+        $this->runCli(['command' => 'decide', 'id' => $epic, 'decision' => 'Keep records as single Markdown files.']);
+
+        [$exit, $json] = $this->runCli(['command' => 'review', 'id' => $epic, '--json' => true]);
+        self::assertSame(0, $exit);
+        $packet = json_decode($json, true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame('template', $packet['prd']['state']);
+        self::assertStringContainsString('Keep records as single Markdown files.', $packet['epic']['decisions']);
+
+        file_put_contents($this->root.'/.workflow/PRD.md', "# PRD\n\n## Goals\n\n1. Exact goals.\n\n## Non-goals\n\n1. No migration.\n");
+        [$exit, $json] = $this->runCli(['command' => 'review', 'id' => $epic, '--json' => true]);
+        self::assertSame(0, $exit);
+        $packet = json_decode($json, true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame('filled', $packet['prd']['state']);
+        self::assertSame('1. Exact goals.', $packet['prd']['goals']);
+        self::assertSame('1. No migration.', $packet['prd']['non_goals']);
+
+        [, $text] = $this->runCli(['command' => 'review', 'id' => $epic]);
+        self::assertStringContainsString('PRD .workflow/PRD.md: filled', $text);
+        self::assertStringContainsString('goals:'."\n".'  1. Exact goals.', $text);
+        self::assertStringContainsString('non-goals:'."\n".'  1. No migration.', $text);
+        self::assertStringContainsString('decisions:', $text);
+        self::assertStringContainsString('· Keep records as single Markdown files.', $text);
+    }
+
+    public function testApproveStoresConfirmationAndPrintsTheAttestation(): void
+    {
+        $this->runCli(['command' => 'init', '--name' => 'test']);
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'Item', '--kind' => 'task']);
+        $id = $this->idFrom($output);
+
+        [$exit, $json] = $this->runCli([
+            'command' => 'approve',
+            'id' => $id,
+            '--by' => 'adam',
+            '--confirmation' => 'Yes, approve this exact scope',
+            '--json' => true,
+        ]);
+        self::assertSame(0, $exit);
+        self::assertSame('Yes, approve this exact scope', json_decode($json, true, flags: JSON_THROW_ON_ERROR)['confirmation']);
+
+        $item = (new ItemStore($this->root))->load($id);
+        self::assertSame('Yes, approve this exact scope', $item->approval->confirmation);
+        self::assertStringContainsString('confirmation', (string) file_get_contents((new ItemStore($this->root))->itemPath($id)));
+
+        // An open item with a recorded confirmation raises no advisory.
+        $warnings = implode("\n", json_decode(
+            $this->runCli(['command' => 'validate', '--json' => true])[1],
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        )['warnings']);
+        self::assertStringNotContainsString('no recorded confirmation quote', $warnings);
+
+        [$exit, $text] = $this->runCli(['command' => 'approve', 'id' => $id, '--by' => 'adam', '--confirmation' => 'Reconfirmed']);
+        self::assertSame(0, $exit);
+        self::assertStringContainsString('Recorded approval by adam at ', $text);
+        self::assertStringContainsString('— this certifies an explicit user confirmation of hash ', $text);
+        self::assertStringContainsString('if confirmation was implicit, record it via workflow log '.$id, $text);
+    }
+
+    public function testBareApproveDefaultsToUnspecifiedInsteadOfFabricatingAUser(): void
+    {
+        $this->runCli(['command' => 'init', '--name' => 'test']);
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'Item', '--kind' => 'task']);
+        $id = $this->idFrom($output);
+
+        [$exit, $text] = $this->runCli(['command' => 'approve', 'id' => $id]);
+        self::assertSame(0, $exit);
+        self::assertStringContainsString('Approved '.$id.' by unspecified', $text);
+
+        $item = (new ItemStore($this->root))->load($id);
+        self::assertSame('unspecified', $item->approval->by);
+
+        $warnings = implode("\n", json_decode(
+            $this->runCli(['command' => 'validate', '--json' => true])[1],
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        )['warnings']);
+        self::assertStringContainsString('approval has no recorded confirmation quote', $warnings);
+    }
+
+    public function testResultAndDecidePrintTheirAdvisoryAffordances(): void
+    {
+        $this->runCli(['command' => 'init', '--name' => 'test']);
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'Item', '--kind' => 'task']);
+        $id = $this->idFrom($output);
+
+        [$exit, $text] = $this->runCli([
+            'command' => 'result',
+            'id' => $id,
+            '--status' => 'needs-decision',
+            '--finding' => 'Question.',
+            '--decision' => 'Pick a format.',
+        ]);
+        self::assertSame(0, $exit);
+        self::assertStringContainsString(
+            'Decision noted on receipt — if the user resolved this, also run: workflow decide '.$id,
+            $text,
+        );
+
+        [$exit, $text] = $this->runCli(['command' => 'decide', 'id' => $id, 'decision' => 'Use the fixed format.']);
+        self::assertSame(0, $exit);
+        self::assertStringContainsString(
+            'Decision recorded. If this changes project-level facts, reconcile .workflow/PRD.md or .workflow/Architecture.md now.',
+            $text,
+        );
+    }
 }
