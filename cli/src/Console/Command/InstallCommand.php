@@ -119,19 +119,17 @@ final class InstallCommand extends BaseCommand
             @chmod($workflowBin, 0755);
         }
 
+        $this->registerOpenCodeAgents($kitRoot, $targetPath, $output);
+
         $output->writeln('');
         $output->writeln('Next steps (manual):');
         $output->writeln('  This is a scaffold copy only; no automatic merges or deletions.');
-        $output->writeln('  OpenCode/harness registration is REQUIRED, MANUAL and UNVERIFIED.');
+        $output->writeln('  OpenCode registration is automated for clean projects; existing configs are never overwritten.');
         $output->writeln(sprintf('  Review %s/docs/install.md first.', $targetPath));
-        $output->writeln(sprintf('  Clean project: copy %s/docs/opencode.example.json to %s/opencode.json.', $targetPath, $targetPath));
-        $output->writeln('  Existing config: manually merge only the agents, default and model entries; never overwrite existing settings.');
+        $output->writeln('  Existing config: manually merge only the missing agents, default and model entries; never overwrite host settings.');
         $output->writeln('  Skills under .agents/skills/ are auto-discovered; no skills entry is needed.');
         $output->writeln('  Expected: workflow-orchestrator primary/default; workflow-explorer, workflow-worker and workflow-verifier subagents.');
-        $output->writeln('  Reload OpenCode, then check the target-scoped V2 /api/agent catalog:');
-        $output->writeln(sprintf('    opencode api agent.list --param "location[directory]=%s"', $targetPath));
-        $output->writeln('  Confirm all four workflow-* IDs, their modes and the reviewed default_agent.');
-        $output->writeln('  workflow validate proves scaffold records only; the catalog is not a paid LLM proof.');
+        $output->writeln('  Reload OpenCode in the target, then the catalog check above turns green (catalog proof only, not a paid LLM proof).');
         $output->writeln('  Manually merge the kit AGENTS.md rules into preserved host instructions.');
         $output->writeln(sprintf('  cd %s/cli && composer install --no-dev', $targetPath));
         $output->writeln(sprintf('  Use ./cli/bin/workflow from the target or %s/cli/bin/workflow (optionally add %s/cli/bin to PATH):', $targetPath, $targetPath));
@@ -139,6 +137,68 @@ final class InstallCommand extends BaseCommand
         $output->writeln(sprintf('  Refresh the derived board after manual edits: %s/cli/bin/workflow --project %s board', $targetPath, $targetPath));
 
         return self::SUCCESS;
+    }
+
+    private function registerOpenCodeAgents(string $kitRoot, string $targetPath, OutputInterface $output): void
+    {
+        $agents = ['workflow-orchestrator', 'workflow-explorer', 'workflow-worker', 'workflow-verifier'];
+        $configPath = $targetPath.'/opencode.json';
+        if (!is_file($configPath)) {
+            $example = $kitRoot.'/docs/opencode.example.json';
+            if (!is_link($configPath) && is_file($example) && @copy($example, $configPath)) {
+                $output->writeln('  created opencode.json (four workflow agents registered for OpenCode)');
+            } else {
+                $output->writeln('<comment>warning: could not create opencode.json from docs/opencode.example.json; create it manually.</comment>');
+            }
+        } else {
+            $decoded = json_decode((string) file_get_contents($configPath), true);
+            $defined = is_array($decoded) && isset($decoded['agents']) && is_array($decoded['agents'])
+                ? array_keys($decoded['agents'])
+                : [];
+            $missing = array_values(array_diff($agents, $defined));
+            if (!is_array($decoded) || $decoded === []) {
+                $output->writeln('<comment>warning: existing opencode.json is not readable JSON; merge the workflow agents manually from docs/opencode.example.json.</comment>');
+            } elseif ($missing === []) {
+                $output->writeln('  existing opencode.json already defines all four workflow agents; nothing changed.');
+            } else {
+                $output->writeln('<comment>warning: existing opencode.json is missing workflow agents: '.implode(', ', $missing).'; merge them manually from docs/opencode.example.json without touching host settings.</comment>');
+            }
+        }
+
+        $this->verifyOpenCodeCatalog($targetPath, $agents, $output);
+    }
+
+    private function verifyOpenCodeCatalog(string $targetPath, array $agents, OutputInterface $output): void
+    {
+        $binary = trim((string) (shell_exec('command -v opencode 2>/dev/null') ?: ''));
+        if ($binary === '') {
+            $output->writeln('  opencode CLI not found on PATH; verify agent registration after reloading OpenCode:');
+            $output->writeln(sprintf('    opencode api agent.list --param "location[directory]=%s"', $targetPath));
+
+            return;
+        }
+
+        $raw = shell_exec(sprintf(
+            '%s api agent.list --param %s 2>/dev/null',
+            escapeshellarg($binary),
+            escapeshellarg('location[directory]='.$targetPath),
+        ));
+        $ids = [];
+        $decoded = json_decode((string) $raw, true);
+        if (is_array($decoded) && isset($decoded['data']) && is_array($decoded['data'])) {
+            foreach ($decoded['data'] as $agent) {
+                if (is_array($agent) && is_string($agent['id'] ?? null)) {
+                    $ids[] = $agent['id'];
+                }
+            }
+        }
+
+        $missing = array_values(array_diff($agents, $ids));
+        if ($missing === []) {
+            $output->writeln('  catalog: all four workflow agents are registered (catalog proof only, not a paid LLM proof).');
+        } else {
+            $output->writeln('<comment>warning: catalog reports missing workflow agents: '.implode(', ', $missing).' — reload OpenCode in the target, then re-check: opencode api agent.list --param "location[directory]='.$targetPath.'"</comment>');
+        }
     }
 
     private function copyTree(string $source, string $target, bool $force, array &$copied, array &$skipped): void

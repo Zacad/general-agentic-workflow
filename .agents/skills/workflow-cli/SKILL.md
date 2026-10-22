@@ -50,7 +50,7 @@ worker: plain `brief ID` is unsafe for independent verification.
 | `result ID --status STATUS --finding TEXT` | Receipt; optional `--role ROLE` (default worker), repeatable/comma-separated `--artifacts PATH`, `--decision TEXT`, `--next TEXT`. |
 | `close ID [--status done\|cancelled] [--reason TEXT] [--force]` | Done requires current verifier proof; force records an unverified exception, not success. |
 | `board` | Regenerate derived `.workflow/board.html`, not a read-only command. |
-| `install DIR [--name NAME] [--force]` | Scaffold; preservation/manual-merge contract in `docs/install.md`. |
+| `install DIR [--name NAME] [--force]` | Scaffold; clean projects get `opencode.json` created automatically, existing configs get per-agent merge guidance, and the target-scoped agent catalog is verified when the `opencode` CLI is on `PATH` (advisory). Preservation/manual-merge contract in `docs/install.md`. |
 
 A new item starts in `plan`; approving a draft moves it to `todo`. Plan/design
 require exactly one content source. Without flags they change only content,

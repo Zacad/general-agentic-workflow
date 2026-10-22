@@ -58,28 +58,34 @@ Use `./cli/bin/workflow` from the target or the absolute
 refresh the derived `.workflow/board.html`; run `workflow board` to force a
 rewrite after a manual edit.
 
-## Register OpenCode (manual)
+## Register OpenCode
 
-Scaffolding does not register agents. **OpenCode/harness registration is
-REQUIRED, MANUAL and UNVERIFIED**; review the result against host settings.
+The installer registers OpenCode agents for clean projects and verifies the
+catalog when the `opencode` CLI is available. Registration checks are advisory:
+they never fail the install.
 
-- **Clean project:** review [opencode.example.json](opencode.example.json), then
-  copy it to the target root as `opencode.json` (or the equivalent). Keep it at
-  the root because its `{file:...}` role paths resolve from the config file. It
-  registers `workflow-orchestrator` as `primary` and `default_agent`, plus
+- **Clean project (no `opencode.json`):** the installer copies
+  [opencode.example.json](opencode.example.json) to the target root as
+  `opencode.json` automatically. Keep it at the root because its `{file:...}`
+  role paths resolve from the config file. It registers
+  `workflow-orchestrator` as `primary` and `default_agent`, plus
   `workflow-explorer`, `workflow-worker` and `workflow-verifier` as `subagent`s.
   It omits `model`, so agents inherit the session model; add
   `"model": "provider/model"` only to pin one. `default_agent` chooses the
   starting primary; change it only when sessions should start elsewhere.
-- **Existing configuration:** preserve the host file. Manually merge only the
-  applicable `agents` entries, permissions, `model`/`default_agent` choices and
-  unrelated settings. Merge additively and review conflicts; do not overwrite
-  host authority. Keep the host `default_agent` unless the user asks otherwise.
+- **Existing configuration:** the host file is never overwritten. The installer
+  parses it and reports exactly which `workflow-*` agent entries are missing;
+  manually merge only the applicable `agents` entries, permissions,
+  `model`/`default_agent` choices and unrelated settings. Merge additively and
+  review conflicts; do not overwrite host authority. Keep the host
+  `default_agent` unless the user asks otherwise.
 - **Skills:** `.agents/skills/` is discovered as a project-compatibility source;
   no `skills` entry is needed. Add one only for extra local or HTTP sources.
 - **Reload and verify:** restart OpenCode or run
-  `opencode api post /api/location/reload`. Then query the target-scoped V2
-  `/api/agent` catalog:
+  `opencode api post /api/location/reload`. The installer queries the
+  target-scoped V2 `/api/agent` catalog when `opencode` is on `PATH` and prints
+  which `workflow-*` agents are registered; it skips gracefully and prints the
+  manual check when the CLI is absent:
 
   ```sh
   opencode api agent.list --param "location[directory]=/path/to/target"

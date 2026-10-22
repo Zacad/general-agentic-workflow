@@ -75,13 +75,14 @@ exit($application->run(new Symfony\Component\Console\Input\ArrayInput($input)));
     }
 
     /** @return array{int, string} */
-    private function install(string $target, bool $force = false): array
+    private function install(string $target, bool $force = false, ?string $pathDir = null): array
     {
         $process = proc_open(
             [PHP_BINARY, $this->runner, $target, $force ? 'force' : 'default'],
             [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
             $pipes,
             $this->root,
+            ['PATH' => $pathDir ?? ''],
         );
         self::assertIsResource($process);
         $output = stream_get_contents($pipes[1]);
@@ -92,39 +93,35 @@ exit($application->run(new Symfony\Component\Console\Input\ArrayInput($input)));
         return [proc_close($process), $output.$error];
     }
 
-    public function testFreshScaffoldHandsOffManualRegistrationWithVerifiableSteps(): void
+    public function testFreshScaffoldCreatesOpencodeConfigurationWithVerifiableSteps(): void
     {
         $target = $this->root.'/host/project';
         [$exit, $output] = $this->install($target);
         self::assertSame(0, $exit, $output);
 
         self::assertStringContainsString('Scaffold copied into', $output);
-        self::assertStringContainsString(
-            'OpenCode/harness registration is REQUIRED, MANUAL and UNVERIFIED',
-            $output,
+        self::assertStringContainsString('created opencode.json', $output);
+        self::assertSame(
+            '{"default_agent":"workflow-orchestrator","agents":{}}',
+            file_get_contents($target.'/opencode.json'),
         );
-        self::assertStringContainsString('docs/opencode.example.json', $output);
-        self::assertStringContainsString('opencode.json', $output);
-        self::assertStringContainsString('never overwrite existing settings', $output);
+        self::assertFileExists($target.'/docs/opencode.example.json');
         self::assertStringContainsString('Skills under .agents/skills/ are auto-discovered', $output);
         self::assertStringContainsString('workflow-orchestrator primary/default', $output);
         self::assertStringContainsString(
             'workflow-explorer, workflow-worker and workflow-verifier subagents',
             $output,
         );
+        self::assertStringContainsString('opencode CLI not found on PATH', $output);
         self::assertStringContainsString('opencode api agent.list', $output);
         self::assertStringContainsString('location[directory]='.$target, $output);
-        self::assertStringContainsString('reviewed default_agent', $output);
-        self::assertStringContainsString('workflow validate proves scaffold records only', $output);
         self::assertStringContainsString('not a paid LLM proof', $output);
         self::assertStringContainsString('Manually merge the kit AGENTS.md', $output);
         self::assertStringContainsString('composer install --no-dev', $output);
         self::assertStringContainsString('PATH', $output);
         self::assertStringContainsString('board', $output);
 
-        // No automatic registration or full configuration dump.
-        self::assertFileDoesNotExist($target.'/opencode.json');
-        self::assertFileExists($target.'/docs/opencode.example.json');
+        // No full configuration dump.
         self::assertStringNotContainsString('"$schema"', $output);
         self::assertStringNotContainsString('Installed into', $output);
         self::assertStringNotContainsString('opencode debug agents', $output);
@@ -149,8 +146,8 @@ exit($application->run(new Symfony\Component\Console\Input\ArrayInput($input)));
         [$exit, $output] = $this->install($target, $force);
         self::assertSame(0, $exit, $output);
         self::assertSame($hostConfig, file_get_contents($target.'/opencode.json'));
-        self::assertStringContainsString('never overwrite existing settings', $output);
-        self::assertStringContainsString('manually merge only the agents', $output);
+        self::assertStringContainsString('never overwrite host settings', $output);
+        self::assertStringContainsString('manually merge only the missing agents', $output);
         self::assertStringNotContainsString('HOST_SECRET_MODEL', $output);
         self::assertStringNotContainsString('host-orchestrator', $output);
     }

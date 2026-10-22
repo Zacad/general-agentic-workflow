@@ -24,6 +24,11 @@ final class InstallScaffoldTest extends WorkflowTestCase
             '.agents/skills/example/SKILL.md' => 'kit skill',
             'docs/install.md' => 'kit instructions',
             'docs/.gitignore' => 'kit ignore',
+            'docs/opencode.example.json' => '{"$schema":"https://opencode.ai/config.json","default_agent":"workflow-orchestrator","agents":{'
+                .'"workflow-orchestrator":{"description":"Coordinates the workflow.","mode":"primary","system":"{file:./.agents/roles/orchestrator.md}"},'
+                .'"workflow-explorer":{"description":"Answers one bounded question.","mode":"subagent"},'
+                .'"workflow-worker":{"description":"Delivers one approved outcome.","mode":"subagent"},'
+                .'"workflow-verifier":{"description":"Independently checks frozen artifacts.","mode":"subagent"}}}',
             'cli/bin/workflow' => '#!/usr/bin/env php',
             'cli/templates/PRD.md' => '# {{PROJECT}} PRD {{DATE}}',
             'cli/templates/Architecture.md' => '# {{PROJECT}} architecture',
@@ -80,13 +85,14 @@ exit($application->run(new Symfony\Component\Console\Input\ArrayInput($input)));
     }
 
     /** @return array{int, string} */
-    private function install(string $target, bool $force = false): array
+    private function install(string $target, bool $force = false, ?string $pathDir = null): array
     {
         $process = proc_open(
             [PHP_BINARY, $this->runner, $target, $force ? 'force' : 'default'],
             [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
             $pipes,
             $this->root,
+            ['PATH' => $pathDir ?? ''],
         );
         self::assertIsResource($process);
         $output = stream_get_contents($pipes[1]);
@@ -95,6 +101,14 @@ exit($application->run(new Symfony\Component\Console\Input\ArrayInput($input)));
         fclose($pipes[2]);
 
         return [proc_close($process), $output.$error];
+    }
+
+    private function shim(string $directory, string $payload): void
+    {
+        $this->put($directory.'/opencode', '#!/bin/sh
+echo \''.$payload.'\'
+');
+        chmod($directory.'/opencode', 0755);
     }
 
     public function testFreshScaffoldExcludesHistoryAndDependenciesAndGivesManualGuidance(): void
@@ -114,8 +128,87 @@ exit($application->run(new Symfony\Component\Console\Input\ArrayInput($input)));
         self::assertFileDoesNotExist($target.'/cli/vendor');
         self::assertFileDoesNotExist($target.'/cli/tools');
         self::assertSame(0755, fileperms($target.'/cli/bin/workflow') & 0777);
+        self::assertStringContainsString('created opencode.json', $output);
+        $config = json_decode((string) file_get_contents($target.'/opencode.json'), true);
+        self::assertSame(
+            ['workflow-orchestrator', 'workflow-explorer', 'workflow-worker', 'workflow-verifier'],
+            array_keys($config['agents']),
+        );
+        self::assertSame('workflow-orchestrator', $config['default_agent']);
+        self::assertStringContainsString('opencode CLI not found on PATH', $output);
         self::assertStringContainsString('Manually merge the kit AGENTS.md', $output);
         self::assertStringContainsString('composer install --no-dev', $output);
+    }
+
+    public function testExistingConfigWithAllAgentsIsConfirmedAndUntouched(): void
+    {
+        $target = $this->root.'/host/agents-present';
+        mkdir($target, 0777, true);
+        $config = '{"default_agent":"workflow-orchestrator","agents":{'
+            .'"workflow-orchestrator":{"mode":"primary"},"workflow-explorer":{"mode":"subagent"},'
+            .'"workflow-worker":{"mode":"subagent"},"workflow-verifier":{"mode":"subagent"},"host-agent":{"mode":"subagent"}}}';
+        $this->put($target.'/opencode.json', $config);
+
+        [$exit, $output] = $this->install($target);
+        self::assertSame(0, $exit, $output);
+        self::assertSame($config, file_get_contents($target.'/opencode.json'));
+        self::assertStringContainsString('already defines all four workflow agents; nothing changed', $output);
+    }
+
+    public function testExistingConfigMissingAgentsWarnsWithMergeGuidance(): void
+    {
+        $target = $this->root.'/host/agents-partial';
+        mkdir($target, 0777, true);
+        $config = '{"agents":{"workflow-orchestrator":{"mode":"primary"},"host-agent":{}}}';
+        $this->put($target.'/opencode.json', $config);
+
+        [$exit, $output] = $this->install($target);
+        self::assertSame(0, $exit, $output);
+        self::assertSame($config, file_get_contents($target.'/opencode.json'));
+        self::assertStringContainsString('missing workflow agents: workflow-explorer, workflow-worker, workflow-verifier', $output);
+        self::assertStringContainsString('merge them manually', $output);
+    }
+
+    public function testUnparseableExistingConfigWarnsAndStaysUntouched(): void
+    {
+        $target = $this->root.'/host/broken-config';
+        mkdir($target, 0777, true);
+        $this->put($target.'/opencode.json', '{"agents": trunc');
+
+        [$exit, $output] = $this->install($target);
+        self::assertSame(0, $exit, $output);
+        self::assertStringContainsString('not readable JSON', $output);
+        self::assertSame('{"agents": trunc', file_get_contents($target.'/opencode.json'));
+    }
+
+    public function testCatalogVerificationReportsRegisteredWorkflowAgents(): void
+    {
+        $shimDir = $this->root.'/shim';
+        mkdir($shimDir, 0777, true);
+        $this->shim($shimDir, '{"location":{"directory":"any"},"data":[{"id":"workflow-orchestrator","mode":"primary"},{"id":"workflow-explorer","mode":"subagent"},{"id":"workflow-worker","mode":"subagent"},{"id":"workflow-verifier","mode":"subagent"},{"id":"build","mode":"primary"}]}');
+        $target = $this->root.'/host/catalog-ok';
+        mkdir($target, 0777, true);
+        $this->put($target.'/opencode.json', '{"agents":{"workflow-orchestrator":{},"workflow-explorer":{},"workflow-worker":{},"workflow-verifier":{}}}');
+
+        [$exit, $output] = $this->install($target, false, $shimDir);
+        self::assertSame(0, $exit, $output);
+        self::assertStringContainsString('catalog: all four workflow agents are registered', $output);
+        self::assertStringContainsString('catalog proof only', $output);
+    }
+
+    public function testCatalogVerificationWarnsWhenAgentsAreMissing(): void
+    {
+        $shimDir = $this->root.'/shim-missing';
+        mkdir($shimDir, 0777, true);
+        $this->shim($shimDir, '{"data":[{"id":"build","mode":"primary"},{"id":"general","mode":"subagent"}]}');
+        $target = $this->root.'/host/catalog-missing';
+        mkdir($target, 0777, true);
+        $this->put($target.'/opencode.json', '{"agents":{"host-agent":{}}}');
+
+        [$exit, $output] = $this->install($target, false, $shimDir);
+        self::assertSame(0, $exit, $output);
+        self::assertStringContainsString('catalog reports missing workflow agents: workflow-orchestrator', $output);
+        self::assertStringContainsString('reload OpenCode in the target', $output);
     }
 
     public static function forceModes(): array
