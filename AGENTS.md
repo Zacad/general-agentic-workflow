@@ -1,9 +1,9 @@
 # Project workflow rules
 
+Always load skills 'clear-communication' and 'critical reasoning'.
+
 This is the canonical operating contract. Every role loads the project's root
-`AGENTS.md`, including when used separately. Installation preserves host rules:
-absent, incomplete or conflicting workflow instructions require a reviewed
-manual merge, not assumed authority to overwrite them.
+`AGENTS.md`, including when used separately.
 
 Markdown in `.workflow/` is durable state; use `cli/bin/workflow` (or `workflow`
 on `PATH`) to manage item records. Load `.agents/skills/workflow-cli/SKILL.md`
@@ -79,11 +79,7 @@ For an epic include discovery and integration.
 Multi-phase or multi-goal projects are not one flat child chain. Structure them
 as one epic per phase (epics are standalone containers; `depends_on` orders
 phases) with the roadmap recorded in PRD.md, or as milestone groups named in the
-epic Design scope map. Non-functional and educational goals belong in framing
-like functional ones: state them in the outcome/PRD, and if a goal produces its
-own observable artifacts (ADR records, learning journal, benchmarks), frame it
-as its own child or thread it through phase acceptance — do not append it to a
-final packaging task.
+epic Design scope map.
 
 Present actual records, not a
 summary: `workflow review <epic>` gives the exact epic/descendant packet,
