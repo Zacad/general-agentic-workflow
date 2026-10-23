@@ -119,10 +119,10 @@ workflow new "Check scaffold" --kind task \
 workflow set T-001 'scope_in=CLI record smoke' 'scope_out=Real project work' \
   'acceptance=The role brief loads and cancelled history remains'
 workflow plan T-001 --text "Exercise record commands only; no exploration needed for this smoke."
-workflow design T-001 --text "Read the brief and cancel this retained smoke record; no deliverable or open risks."
 workflow brief T-001 --for orchestrator --json
 # After confirmation of this exact isolated smoke scope:
 workflow approve T-001 --by user
+workflow design T-001 --text "Read the brief and cancel this retained smoke record; no deliverable or open risks." --approve --by user
 workflow brief T-001 --for worker
 workflow close T-001 --status cancelled --reason "Isolated smoke completed; no project work requested"
 workflow board

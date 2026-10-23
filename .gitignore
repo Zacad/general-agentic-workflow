@@ -3,7 +3,7 @@
 /cli/tools/
 /cli/.phpunit.cache/
 
-# Generated or transient workflow state.
-/.workflow/.locks/
-/.workflow/board.html
+# Workflow records are durable local state, not kit content; they live only
+# in the working copy and are never tracked, derived views are rebuildable.
+/.workflow/
 *.tmp

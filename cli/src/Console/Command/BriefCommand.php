@@ -40,6 +40,32 @@ final class BriefCommand extends BaseCommand
             return self::INVALID;
         }
 
+        // The design gate refuses the worker packet itself; every other role
+        // keeps its packet with the label only.
+        if ($role === 'worker') {
+            $reason = $view->designGateReason($item);
+            if ($reason !== null) {
+                $hint = 'workflow design '.$item->id.' --approve';
+                if ($input->getOption('json')) {
+                    $this->writeJson($output, [
+                        'is_refusal' => true,
+                        'item' => $item->id,
+                        'reason' => $reason,
+                        'hint' => $hint,
+                    ]);
+                } else {
+                    $output->writeln(sprintf(
+                        '<error>%s is blocked for a worker: %s. Run "%s" before dispatching.</error>',
+                        $item->id,
+                        $reason,
+                        $hint,
+                    ));
+                }
+
+                return self::INVALID;
+            }
+        }
+
         $packet = $this->packet($item, $items, $role);
         if ($input->getOption('json')) {
             $this->writeJson($output, $packet);
@@ -79,6 +105,7 @@ final class BriefCommand extends BaseCommand
             ],
             'role' => $role,
             'approval' => $this->approvalLabel($item),
+            'design_approval' => $this->designApprovalLabel($item),
             'dependencies' => $this->dependencyLines($item, $items),
             'upstream_artifacts' => $this->upstreamArtifacts($item, $items),
             'plan' => $item->section('Plan'),
@@ -139,9 +166,10 @@ final class BriefCommand extends BaseCommand
             $role,
         ));
         $output->writeln(sprintf(
-            'parent: %s · approval: %s',
+            'parent: %s · approval: %s · design_approval: %s',
             $item['parent'] ?? 'none',
             $packet['approval'],
+            $packet['design_approval'],
         ));
         $output->writeln(sprintf(
             'depends: %s · owns: %s',
@@ -257,6 +285,19 @@ final class BriefCommand extends BaseCommand
         }
 
         return sprintf('current (%s, %s)', $item->approval->by, $item->approval->at);
+    }
+
+    private function designApprovalLabel(Item $item): string
+    {
+        if ($item->designApproval === null) {
+            return 'none';
+        }
+
+        if ($item->hasStaleDesignApproval()) {
+            return 'STALE — re-approve design before work';
+        }
+
+        return sprintf('current (%s, %s)', $item->designApproval->by, $item->designApproval->at);
     }
 
     /**

@@ -88,6 +88,12 @@ final class OwnedPathTest extends WorkflowTestCase
             'owns' => $owns, 'depends_on' => $depends, 'standalone_reason' => 'Independent fixture.',
         ];
         $data['approval'] = (new Approval(self::AT, 'user', Item::fromArray($data, '')->scopeHash()))->toArray();
+        if (in_array($status, ['todo', 'in-progress'], true)) {
+            // Readiness and validation include the design gate (an open task
+            // without a current design approval is blocked); these fixtures
+            // predate it.
+            $data['design_approval'] = Approval::forDesign(self::AT, 'user', hash('sha256', ''))->toArray();
+        }
         if ($status === 'done') {
             $data['last_result'] = ['at' => self::AT, 'role' => 'verifier', 'status' => 'done', 'finding' => 'Checked.'];
             $data['verified_at'] = self::AT;

@@ -137,6 +137,7 @@ final class BriefPacketTest extends WorkflowTestCase
                 ],
                 'role' => $role,
                 'approval' => 'current (reviewer, 2026-10-21T00:00:00+00:00)',
+                'design_approval' => 'none',
                 'dependencies' => ['T-001 (done)'],
                 'upstream_artifacts' => ['T-001' => ['evidence/upstream.md']],
                 'plan' => 'Bounded approach.', 'design' => 'Required design.',
@@ -258,5 +259,67 @@ final class BriefPacketTest extends WorkflowTestCase
         self::assertSame(self::CLAIM, $packet['decisions']);
         self::assertArrayNotHasKey('last_result', $packet['item']);
         self::assertStringContainsString(self::CLAIM, $this->brief('verifier', false));
+    }
+
+    public function testDesignApprovalLabelMirrorsTheApprovalLabelInBothFormats(): void
+    {
+        $this->data['design_approval'] = [
+            'at' => '2026-10-21T00:00:00+00:00', 'by' => 'designer',
+            'design_hash' => Item::fromArray($this->data, $this->body)->designHash(),
+        ];
+        $this->put($this->data, $this->body);
+
+        $packet = json_decode($this->brief('orchestrator', true), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame('current (designer, 2026-10-21T00:00:00+00:00)', $packet['design_approval']);
+        self::assertStringContainsString(
+            'design_approval: current (designer, 2026-10-21T00:00:00+00:00)',
+            $this->brief('orchestrator', false),
+        );
+
+        // A Design change stales the design label while the scope label keeps
+        // reporting the independent scope approval.
+        $this->put($this->data, str_replace('Required design.', 'Changed design.', $this->body));
+        $packet = json_decode($this->brief('orchestrator', true), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame('STALE — re-approve design before work', $packet['design_approval']);
+        self::assertSame('current (reviewer, 2026-10-21T00:00:00+00:00)', $packet['approval']);
+    }
+
+    public function testWorkerBriefIsRefusedOnABlockedDesignGateInBothFormats(): void
+    {
+        $this->data['status'] = 'todo';
+        $this->put($this->data, $this->body);
+
+        [$exit, $text] = $this->refused('worker', false);
+        self::assertSame(2, $exit, $text);
+        self::assertStringContainsString('design not approved', $text);
+        self::assertStringContainsString('workflow design T-002 --approve', $text);
+
+        [$exit, $json] = $this->refused('worker', true);
+        self::assertSame(2, $exit, $json);
+        self::assertSame([
+            'is_refusal' => true,
+            'item' => 'T-002',
+            'reason' => 'design not approved',
+            'hint' => 'workflow design T-002 --approve',
+        ], json_decode($json, true, flags: JSON_THROW_ON_ERROR));
+
+        foreach (['orchestrator', 'explorer', 'verifier'] as $role) {
+            // Other roles keep their packet; brief() asserts the zero exit.
+            $this->brief($role, false);
+        }
+    }
+
+    /** @return array{0: int, 1: string} */
+    private function refused(string $role, bool $json): array
+    {
+        $application = new Application();
+        $application->setAutoExit(false);
+        $output = new BufferedOutput();
+        $exit = $application->run(new ArrayInput([
+            '--project' => $this->root, 'command' => 'brief', 'id' => 'T-002',
+            '--for' => $role, '--json' => $json,
+        ]), $output);
+
+        return [$exit, $output->fetch()];
     }
 }

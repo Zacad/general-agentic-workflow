@@ -8,7 +8,14 @@ manual merge, not assumed authority to overwrite them.
 Markdown in `.workflow/` is durable state; use `cli/bin/workflow` (or `workflow`
 on `PATH`) to manage item records. Load `.agents/skills/workflow-cli/SKILL.md`
 for the command contract and read bounds; load the method skill that matches
-the work rather than every skill.
+the work rather than every skill:
+
+| Kind of work | Method skill |
+| --- | --- |
+| New project | start-project — runs requirements + code-architecture |
+| Epic framing/decomposition | decompose-work |
+| Task solution design | code-architecture (task solution design route) |
+| Task execution | work-task |
 
 ## Coordination and records
 
@@ -111,18 +118,34 @@ acceptance coverage, dependencies, owned paths, integration contract and open
 unknowns. Child designs reference the parent instead of copying the map.
 Include a coverage matrix and a decomposition rationale that, for each child,
 names the finer split considered (if any) and why the chosen boundary beats it —
-not only why subtasks were or were not useful. 'No finer split exists' or 'the
-finer split fails one-writer/one-outcome' are valid answers; silence is not.
+not only why subtasks were or were not useful, and answers the boundedness
+test: does the child bundle two or more independently acceptable outcomes?
+If so, split it or record the explicit broad-item reason. 'No finer split
+exists' or 'the finer split fails one-writer/one-outcome' are valid answers;
+silence or a bare 'no need' is not.
 The epic's `## Design` section is the durable map; record it before children are
 approved. An `outputs/` artifact is supporting evidence, not the durable map.
 Later evidence may revise decomposition; review/reapprove only affected changed
 scopes, not an unchanged epic.
+
+A task or subtask Design is a solution design, not a map reference plus bullet
+stubs: it states the drivers/characteristics, the compared options, the chosen
+approach and its limits. The method is code-architecture (task solution
+design route).
 
 Approval covers only kind, parent, title, outcome, scope, acceptance and
 dependencies. `approve` prints those exact values with their scope hash.
 Status, phase, priority, owns, Plan/Design, decisions, artifacts and progress
 do not invalidate approval; changed scope does. Do not ask again for routine
 steps. Approval freshness and verification freshness are separate.
+
+Tasks and subtasks have a second, separate gate: implementation begins only
+after the solution design is presented to the user and approved. Record that
+approval with `workflow design <id> --approve` in the same mutation that
+writes the Design; the CLI refuses worker dispatch without it ('design not
+approved' / 'stale design approval'). Scope approval survives Design
+changes; design approval does not — a material Design change stales it, so
+re-present the design and re-approve before dispatch.
 
 ## Work sequence
 
@@ -136,9 +159,10 @@ Apply the same approach at each level, scaled to the outcome:
 3. **Design from evidence:** artifact outline, canonical claims/values,
    decisions, trade-offs, checks and open risks. Record with `workflow design`.
 4. **Implement:** use `phase=implement`; dispatch a worker only with current
-   approval, Plan/Design, required evidence (or justified no-exploration), done
-   dependencies and uncontested ownership. `ready` checks computed readiness
-   and reports overlaps; it does not check every procedural condition here.
+   scope and design approval, Plan/Design, required evidence (or justified
+   no-exploration), done dependencies and uncontested ownership. `ready`
+   checks computed readiness and reports overlaps; it does not check every
+   procedural condition here.
 5. **Verify:** freeze named paths, use `phase=verify`, and assign an independent
    verifier `workflow brief <id> --for verifier`. The verifier derives
    expectations before seeing producer conclusions, checks the actual target
@@ -147,10 +171,10 @@ Apply the same approach at each level, scaled to the outcome:
    verifier ...`, then `workflow close <id>` in a separate call.
 
 Small work needs one item, short exact scope approval, a one-line Plan and
-Design, and an explicit reason if no exploration is needed. It normally still
-uses an independent verifier. A deliberate `close --force --reason "..."`
-records an unverified exception, never verifier success; triviality is not an
-implicit exemption.
+Design (with its design approval), and an explicit reason if no exploration
+is needed. It normally still uses an independent verifier. A deliberate
+`close --force --reason "..."` records an unverified exception, never
+verifier success; triviality is not an implicit exemption.
 
 Split independently acceptable deliverables, not steps. A **deliverable** can
 be accepted or rejected on its own while siblings remain unfinished; a **step**

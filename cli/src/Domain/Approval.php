@@ -6,22 +6,39 @@ namespace Workflow\Domain;
 
 final class Approval
 {
+    /**
+     * @param non-empty-string $hashKey YAML hash key this record renders under:
+     *                                  scope records carry scope_hash, design
+     *                                  records carry design_hash.
+     */
     public function __construct(
         public readonly string $at,
         public readonly string $by,
-        public readonly string $scopeHash,
+        public readonly string $hash,
         public readonly ?string $confirmation = null,
+        public readonly string $hashKey = 'scope_hash',
     ) {
     }
 
     public static function fromArray(array $data): self
     {
+        // One value object reads both hash keys: the design-approval block
+        // reuses the record shape under its own design_hash key.
+        $hashKey = array_key_exists('design_hash', $data) ? 'design_hash' : 'scope_hash';
+
         return new self(
             (string) ($data['at'] ?? ''),
             (string) ($data['by'] ?? ''),
-            (string) ($data['scope_hash'] ?? ''),
+            (string) ($data[$hashKey] ?? ''),
             self::nullableString($data['confirmation'] ?? null),
+            $hashKey,
         );
+    }
+
+    /** Named constructor for the design-approval block (design_hash key). */
+    public static function forDesign(string $at, string $by, string $hash, ?string $confirmation = null): self
+    {
+        return new self($at, $by, $hash, $confirmation, 'design_hash');
     }
 
     public function toArray(): array
@@ -29,7 +46,7 @@ final class Approval
         $record = [
             'at' => $this->at,
             'by' => $this->by,
-            'scope_hash' => $this->scopeHash,
+            $this->hashKey => $this->hash,
         ];
 
         // Old records without a confirmation round-trip unchanged.

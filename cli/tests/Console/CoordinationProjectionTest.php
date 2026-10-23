@@ -62,6 +62,12 @@ final class CoordinationProjectionTest extends WorkflowTestCase
                 if ($status !== 'draft') {
                     $data['approval'] = (new Approval(self::AT, 'user', Item::fromArray($data, '')->scopeHash()))->toArray();
                 }
+                if ($group === 'ready' || $group === 'active') {
+                    // Readiness and the in-progress validation diagnostic both
+                    // include the design gate; these projection fixtures
+                    // predate it.
+                    $data['design_approval'] = Approval::forDesign(self::AT, 'user', hash('sha256', ''))->toArray();
+                }
                 $directory = $this->root.'/.workflow/items/'.$id;
                 mkdir($directory, 0777, true);
                 file_put_contents($directory.'/item.md', FrontMatter::render($data, ''));

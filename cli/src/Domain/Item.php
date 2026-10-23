@@ -11,8 +11,9 @@ final class Item
 
     private const KNOWN_KEYS = [
         'id', 'kind', 'parent', 'title', 'status', 'phase', 'priority',
-        'depends_on', 'owns', 'artifacts', 'approval', 'last_result',
-        'verified_at', 'created', 'updated', 'outcome', 'scope', 'acceptance',
+        'depends_on', 'owns', 'artifacts', 'approval', 'design_approval',
+        'last_result', 'verified_at', 'created', 'updated', 'outcome', 'scope',
+        'acceptance',
     ];
 
     /**
@@ -51,6 +52,13 @@ final class Item
     }
 
     /**
+     * Design-approval record beside the scope approval; the Approval value
+     * object renders it under the design_hash key. Defaults to null so plain
+     * constructions stay ungated legacy records.
+     */
+    public ?Approval $designApproval = null;
+
+    /**
      * @param array<string, mixed> $data
      */
     public static function fromArray(array $data, string $body): self
@@ -77,9 +85,10 @@ final class Item
 
         $scope = is_array($data['scope'] ?? null) ? $data['scope'] : [];
         $approval = is_array($data['approval'] ?? null) ? Approval::fromArray($data['approval']) : null;
+        $designApproval = is_array($data['design_approval'] ?? null) ? Approval::fromArray($data['design_approval']) : null;
         $lastResult = is_array($data['last_result'] ?? null) ? $data['last_result'] : null;
 
-        return new self(
+        $item = new self(
             id: $id,
             kind: $kind,
             parent: self::nullableString($data['parent'] ?? null),
@@ -102,6 +111,9 @@ final class Item
             body: $body,
             extra: array_diff_key($data, array_flip(self::KNOWN_KEYS)),
         );
+        $item->designApproval = $designApproval;
+
+        return $item;
     }
 
     /**
@@ -121,6 +133,7 @@ final class Item
             'owns' => array_values($this->owns),
             'artifacts' => array_values($this->artifacts),
             'approval' => $this->approval?->toArray(),
+            'design_approval' => $this->designApproval?->toArray(),
             'last_result' => $this->lastResult,
             'verified_at' => $this->verifiedAt,
             'created' => $this->created,
@@ -162,12 +175,52 @@ final class Item
 
     public function isApproved(): bool
     {
-        return $this->approval !== null && hash_equals($this->approval->scopeHash, $this->scopeHash());
+        return $this->approval !== null && hash_equals($this->approval->hash, $this->scopeHash());
     }
 
     public function hasStaleApproval(): bool
     {
         return $this->approval !== null && !$this->isApproved();
+    }
+
+    /**
+     * sha256 over the Design section as recorded in the body, not over any
+     * remembered value. Mirrors ItemLifecycle::sections(): a repeated
+     * "## Design" heading is material, so every occurrence feeds the hash even
+     * though section() shows only the first one. This hash is independent of
+     * scopeHash(): scope approval must survive Design changes while design
+     * approval stales on them — never derive one from the other.
+     */
+    public function designHash(): string
+    {
+        // Mirror ItemLifecycle::sections(): slice between consecutive known
+        // headings, so Design content ends where the next section begins and
+        // a repeated "## Design" heading is still material even though
+        // section() shows only the first occurrence.
+        $body = str_replace("\r\n", "\n", $this->body);
+        preg_match_all('/^##[ \t]+(Plan|Design|Decisions|Progress)[ \t]*$/m', $body, $matches, PREG_OFFSET_CAPTURE);
+
+        $content = [];
+        foreach ($matches[0] as $index => [$heading, $offset]) {
+            if ($matches[1][$index][0] !== 'Design') {
+                continue;
+            }
+            $start = $offset + strlen($heading);
+            $end = $matches[0][$index + 1][1] ?? strlen($body);
+            $content[] = trim(substr($body, $start, $end - $start));
+        }
+
+        return hash('sha256', implode("\n\n", $content));
+    }
+
+    public function isDesignApproved(): bool
+    {
+        return $this->designApproval !== null && hash_equals($this->designApproval->hash, $this->designHash());
+    }
+
+    public function hasStaleDesignApproval(): bool
+    {
+        return $this->designApproval !== null && !$this->isDesignApproved();
     }
 
     public function addArtifacts(array $paths): void

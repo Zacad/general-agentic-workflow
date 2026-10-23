@@ -268,6 +268,31 @@ final class LifecycleWriteTest extends WorkflowTestCase
         }
     }
 
+    public function testDesignApprovalWritesKeepProofAndNeverStaleScopeApproval(): void
+    {
+        $this->record();
+        $this->store->mutate('T-001', static function (Item $item): void {
+            $item->designApproval = Approval::forDesign(self::AT, 'user', $item->designHash());
+        });
+
+        $after = $this->store->load('T-001');
+        self::assertSame(self::AT, $after->verifiedAt, 'Approval-metadata writes keep current proof.');
+        self::assertTrue($after->isDesignApproved());
+        self::assertTrue($after->isApproved());
+
+        // A Design change clears proof, stales the design approval and leaves
+        // the scope approval alone: three independent freshness contracts.
+        $this->store->mutate('T-001', static fn (Item $item) => $item->body = str_replace(
+            'Original Design',
+            'Changed Design',
+            $item->body,
+        ));
+        $changed = $this->store->load('T-001');
+        self::assertNull($changed->verifiedAt);
+        self::assertTrue($changed->hasStaleDesignApproval());
+        self::assertTrue($changed->isApproved());
+    }
+
     public function testExplicitVerificationDoesNotAddApprovalPlanDesignOrPhaseGates(): void
     {
         $candidate = $this->make('T-003');

@@ -375,4 +375,73 @@ final class ItemValidatorTest extends WorkflowTestCase
         $warnings = implode("\n", (new ItemValidator($this->store))->validate()->warnings);
         self::assertStringNotContainsString('no recorded confirmation quote', $warnings);
     }
+
+    public function testDesignApprovalDiagnosticsMirrorScopeApprovals(): void
+    {
+        $item = $this->make('T-001', Kind::Task);
+        $this->store->create($item);
+
+        // Todo without a design block: warning only.
+        $result = (new ItemValidator($this->store))->validate();
+        self::assertSame([], $result->errors);
+        self::assertStringContainsString('T-001: design not approved yet.', implode("\n", $result->warnings));
+
+        // In-progress without a design block: error.
+        $loaded = $this->store->load('T-001');
+        $loaded->status = Status::InProgress;
+        $this->store->save($loaded);
+        $result = (new ItemValidator($this->store))->validate();
+        self::assertStringContainsString('T-001: in-progress without design approval.', implode("\n", $result->errors));
+
+        // A current design approval with a quote silences both.
+        $loaded = $this->store->load('T-001');
+        $loaded->designApproval = Approval::forDesign('2026-01-01T00:00:00+00:00', 'test', $loaded->designHash(), 'Design approved.');
+        $this->store->save($loaded);
+        $result = (new ItemValidator($this->store))->validate();
+        self::assertStringNotContainsString('design approval', implode("\n", array_merge($result->errors, $result->warnings)));
+
+        // A Design change stales the record with the approve hint.
+        $loaded = $this->store->load('T-001');
+        $loaded->body = "## Plan\n\n## Design\n\nChanged design\n\n## Progress\n";
+        $this->store->save($loaded);
+        $result = (new ItemValidator($this->store))->validate();
+        self::assertStringContainsString(
+            'T-001: design approval is stale (design changed); run "workflow design T-001 --approve".',
+            implode("\n", $result->errors),
+        );
+    }
+
+    public function testDoneItemsStayFineWithoutADesignApprovalBlock(): void
+    {
+        $done = $this->make('T-001', Kind::Task);
+        $done->status = Status::Done;
+        $done->lastResult = ['at' => '2026-01-01T00:00:00+00:00', 'role' => 'verifier', 'status' => 'done', 'finding' => 'Checked.'];
+        $done->verifiedAt = '2026-01-01T00:00:00+00:00';
+        // Raw legacy write: store routes cannot mint completion proof.
+        $this->writeRaw($done);
+
+        $result = (new ItemValidator($this->store))->validate();
+
+        self::assertStringNotContainsString('T-001', implode("\n", $result->errors));
+        self::assertStringNotContainsString('design approval', implode("\n", array_merge($result->errors, $result->warnings)));
+    }
+
+    public function testOpenDesignApprovalWithoutConfirmationQuoteIsWarned(): void
+    {
+        $item = $this->make('T-001', Kind::Task);
+        $item->designApproval = Approval::forDesign('2026-01-01T00:00:00+00:00', 'test', $item->designHash());
+        $this->store->create($item);
+
+        $warnings = implode("\n", (new ItemValidator($this->store))->validate()->warnings);
+        self::assertStringContainsString(
+            'T-001: design approval has no recorded confirmation quote — approval must be explicit user confirmation.',
+            $warnings,
+        );
+
+        $item->designApproval = Approval::forDesign($item->designApproval->at, 'test', $item->designHash(), 'Yes, this design.');
+        $this->store->save($item);
+
+        $warnings = implode("\n", (new ItemValidator($this->store))->validate()->warnings);
+        self::assertStringNotContainsString('design approval has no recorded confirmation quote', $warnings);
+    }
 }

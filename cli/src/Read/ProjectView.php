@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Workflow\Read;
 
 use Workflow\Domain\Item;
+use Workflow\Domain\Kind;
 use Workflow\Domain\Status;
 use Workflow\Store\ItemStore;
 use Workflow\Validate\ItemValidator;
@@ -65,6 +66,35 @@ final class ProjectView
 
         if ($waiting !== []) {
             return 'waits on '.implode(', ', $waiting);
+        }
+
+        $design = $this->designGateReason($item);
+        if ($design !== null) {
+            return $design;
+        }
+
+        return null;
+    }
+
+    /**
+     * Design-gate reason for a dispatch-ready task/subtask: 'design not
+     * approved' when the block is missing, 'stale design approval' on a hash
+     * mismatch, null when current. Epics keep scope approval only, and the
+     * gate applies to todo items — the design approval is the last gate
+     * before worker dispatch, after scope approval and dependencies.
+     */
+    public function designGateReason(Item $item): ?string
+    {
+        if ($item->status !== Status::Todo || !in_array($item->kind, [Kind::Task, Kind::Subtask], true)) {
+            return null;
+        }
+
+        if ($item->designApproval === null) {
+            return 'design not approved';
+        }
+
+        if ($item->hasStaleDesignApproval()) {
+            return 'stale design approval';
         }
 
         return null;

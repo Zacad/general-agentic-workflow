@@ -82,6 +82,16 @@ final class CommandTest extends WorkflowTestCase
         ]);
         self::assertSame(0, $exit);
 
+        // The design gate is the last readiness gate before worker dispatch.
+        [$exit] = $this->runCli([
+            'command' => 'design',
+            'id' => $task,
+            '--text' => 'Parse the front matter; test the round-trip.',
+            '--approve' => true,
+            '--by' => 'adam',
+        ]);
+        self::assertSame(0, $exit);
+
         [$exit, $output] = $this->runCli(['command' => 'brief', 'id' => $task]);
         self::assertSame(0, $exit);
         self::assertStringContainsString('approval: current', $output);
@@ -165,6 +175,7 @@ final class CommandTest extends WorkflowTestCase
 
         $this->runCli(['command' => 'approve', 'id' => $a]);
         $this->runCli(['command' => 'approve', 'id' => $b]);
+        $this->runCli(['command' => 'design', 'id' => $a, '--text' => 'Design A.', '--approve' => true]);
 
         // A is ready. B waits for A.
         [, $output] = $this->runCli(['command' => 'ready', '--json' => true]);
@@ -172,8 +183,13 @@ final class CommandTest extends WorkflowTestCase
         self::assertContains($a, array_column($ready, 'id'));
         self::assertNotContains($b, array_column($ready, 'id'));
 
-        // Completing A makes B ready.
+        // Completing A makes B ready once its own design approval is recorded.
         $this->runCli(['command' => 'close', 'id' => $a, '--status' => 'done', '--force' => true]);
+        [, $output] = $this->runCli(['command' => 'ready', '--json' => true]);
+        $ready = json_decode($output, true, flags: JSON_THROW_ON_ERROR);
+        self::assertNotContains($b, array_column($ready, 'id'));
+
+        $this->runCli(['command' => 'design', 'id' => $b, '--text' => 'Design B.', '--approve' => true]);
         [, $output] = $this->runCli(['command' => 'ready', '--json' => true]);
         $ready = json_decode($output, true, flags: JSON_THROW_ON_ERROR);
         self::assertContains($b, array_column($ready, 'id'));
@@ -183,6 +199,72 @@ final class CommandTest extends WorkflowTestCase
         [, $output] = $this->runCli(['command' => 'ready', '--json' => true]);
         $ready = json_decode($output, true, flags: JSON_THROW_ON_ERROR);
         self::assertNotContains($b, array_column($ready, 'id'));
+    }
+
+    public function testDesignApprovalGateRefusesWorkerBriefsUntilDesignApprovalIsCurrent(): void
+    {
+        $this->runCli(['command' => 'init', '--name' => 'test']);
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'Epic', '--kind' => 'epic']);
+        $epic = $this->idFrom($output);
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'Task', '--kind' => 'task', '--parent' => $epic]);
+        $task = $this->idFrom($output);
+        $this->runCli(['command' => 'set', 'id' => $task, 'assignments' => ['acceptance=Criterion']]);
+        $this->runCli(['command' => 'approve', 'id' => $task]);
+
+        // The worker packet is refused with the reason and the hint; JSON
+        // carries the refusal too. Other roles keep their packets.
+        [$exit, $output] = $this->runCli(['command' => 'brief', 'id' => $task, '--for' => 'worker']);
+        self::assertSame(2, $exit, $output);
+        self::assertStringContainsString('design not approved', $output);
+        self::assertStringContainsString('workflow design '.$task.' --approve', $output);
+
+        [$exit, $json] = $this->runCli(['command' => 'brief', 'id' => $task, '--for' => 'worker', '--json' => true]);
+        self::assertSame(2, $exit, $json);
+        $refusal = json_decode($json, true, flags: JSON_THROW_ON_ERROR);
+        self::assertTrue($refusal['is_refusal']);
+        self::assertSame('design not approved', $refusal['reason']);
+        self::assertSame('workflow design '.$task.' --approve', $refusal['hint']);
+
+        foreach (['orchestrator', 'explorer', 'verifier'] as $role) {
+            [$exit] = $this->runCli(['command' => 'brief', 'id' => $task, '--for' => $role]);
+            self::assertSame(0, $exit, $role);
+        }
+
+        // ready excludes the item; status shows the waiting reason.
+        [, $output] = $this->runCli(['command' => 'ready', '--json' => true]);
+        self::assertNotContains($task, array_column(json_decode($output, true, flags: JSON_THROW_ON_ERROR), 'id'));
+        [, $output] = $this->runCli(['command' => 'status', '--json' => true]);
+        $waiting = json_decode($output, true, flags: JSON_THROW_ON_ERROR)['waiting'];
+        $row = $waiting[array_search($task, array_column($waiting, 'item'), true)];
+        self::assertSame('design not approved', $row['reason']);
+
+        // Recording design approval clears the gate everywhere.
+        $this->runCli(['command' => 'design', 'id' => $task, '--text' => 'Task design.', '--approve' => true, '--by' => 'adam']);
+        [, $output] = $this->runCli(['command' => 'ready', '--json' => true]);
+        self::assertContains($task, array_column(json_decode($output, true, flags: JSON_THROW_ON_ERROR), 'id'));
+        [, $output] = $this->runCli(['command' => 'status', '--json' => true]);
+        self::assertNotContains(
+            $task,
+            array_column(json_decode($output, true, flags: JSON_THROW_ON_ERROR)['waiting'], 'item'),
+        );
+        [$exit, $output] = $this->runCli(['command' => 'brief', 'id' => $task, '--for' => 'worker']);
+        self::assertSame(0, $exit, $output);
+        self::assertStringContainsString('design_approval: current (adam, ', $output);
+
+        // Any Design change stales the approval again.
+        $this->runCli(['command' => 'design', 'id' => $task, '--text' => 'Revised design.']);
+        [$exit, $output] = $this->runCli(['command' => 'brief', 'id' => $task, '--for' => 'worker']);
+        self::assertSame(2, $exit, $output);
+        self::assertStringContainsString('stale design approval', $output);
+
+        [$exit, $output] = $this->runCli(['command' => 'validate']);
+        self::assertSame(1, $exit);
+        self::assertStringContainsString('design approval is stale', $output);
+
+        // Re-approval of the current Design restores a clean project.
+        $this->runCli(['command' => 'design', 'id' => $task, '--text' => 'Revised design.', '--approve' => true]);
+        [$exit] = $this->runCli(['command' => 'validate']);
+        self::assertSame(0, $exit);
     }
 
     public function testVerifierReceiptAndBoard(): void
@@ -410,6 +492,7 @@ final class CommandTest extends WorkflowTestCase
         $task = $this->idFrom($output);
         $this->runCli(['command' => 'approve', 'id' => $epic]);
         $this->runCli(['command' => 'approve', 'id' => $task]);
+        $this->runCli(['command' => 'design', 'id' => $task, '--text' => 'Task design.', '--approve' => true]);
 
         foreach ([
             ['command' => 'status', '--json' => true],
@@ -814,6 +897,7 @@ final class CommandTest extends WorkflowTestCase
         [, $output] = $this->runCli(['command' => 'new', 'title' => 'Task', '--kind' => 'task', '--parent' => $epic]);
         $task = $this->idFrom($output);
         $this->runCli(['command' => 'approve', 'id' => $task]);
+        $this->runCli(['command' => 'design', 'id' => $task, '--text' => 'Task design.', '--approve' => true]);
 
         [$exit, $json] = $this->runCli(['command' => 'ready', '--json' => true]);
         self::assertSame(0, $exit);

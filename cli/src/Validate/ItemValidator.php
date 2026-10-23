@@ -8,6 +8,7 @@ use Workflow\Domain\FrontMatter;
 use Workflow\Domain\InvalidItemException;
 use Workflow\Domain\Item;
 use Workflow\Domain\ItemLifecycle;
+use Workflow\Domain\Kind;
 use Workflow\Read\ProjectDocuments;
 use Workflow\Store\ItemStore;
 
@@ -72,6 +73,7 @@ final class ItemValidator
         $result->errors = array_merge($result->errors, $structure->errors);
         $result->warnings = array_merge($result->warnings, $structure->warnings);
         $this->validateApprovals($items, $result);
+        $this->validateDesignApprovals($items, $result);
         $this->validatePlans($items, $result);
         $this->validateDesigns($items, $result);
         $this->validateParentDesigns($items, $result);
@@ -157,6 +159,44 @@ final class ItemValidator
                     '%s: done while children are open: %s',
                     $item->id,
                     implode(', ', $openChildren),
+                ));
+            }
+        }
+    }
+
+    /**
+     * Design-approval diagnostics mirror the scope-approval ones, scoped to
+     * tasks and subtasks: done records are historical and stay fine without a
+     * block, drafts are not gated yet.
+     *
+     * @param array<string, Item> $items
+     */
+    private function validateDesignApprovals(array $items, ValidationResult $result): void
+    {
+        foreach ($items as $item) {
+            if (!in_array($item->kind, [Kind::Task, Kind::Subtask], true) || $item->status->value === 'done') {
+                continue;
+            }
+
+            if ($item->designApproval === null) {
+                if ($item->status->value === 'in-progress') {
+                    $result->error(sprintf('%s: %s without design approval.', $item->id, $item->status->value));
+                } elseif ($item->status->value === 'todo') {
+                    $result->warning(sprintf('%s: design not approved yet.', $item->id));
+                }
+            } elseif ($item->hasStaleDesignApproval()) {
+                $result->error(sprintf(
+                    '%s: design approval is stale (design changed); run "workflow design %s --approve".',
+                    $item->id,
+                    $item->id,
+                ));
+            }
+
+            if ($item->designApproval !== null && $item->status->isOpen()
+                && trim((string) ($item->designApproval->confirmation ?? '')) === '') {
+                $result->warning(sprintf(
+                    '%s: design approval has no recorded confirmation quote — approval must be explicit user confirmation.',
+                    $item->id,
                 ));
             }
         }

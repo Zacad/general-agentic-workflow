@@ -303,6 +303,136 @@ final class PlanDesignStateTest extends WorkflowTestCase
         self::assertSame(['E-001', 'T-001'], $this->store->ids());
     }
 
+    public function testDesignApproveRecordsHashOfTheJustWrittenDesignInOneMutation(): void
+    {
+        [$exit, $output] = $this->runCli([
+            'command' => 'design', 'id' => 'T-001', '--text' => 'Approved content',
+            '--approve' => true, '--by' => 'adam', '--confirmation' => 'Proceed with this design',
+        ]);
+        self::assertSame(0, $exit, $output);
+
+        $item = $this->store->load('T-001');
+        self::assertSame('Approved content', $item->section('Design'));
+        self::assertSame($item->designHash(), $item->designApproval?->hash);
+        self::assertSame('adam', $item->designApproval?->by);
+        self::assertSame('Proceed with this design', $item->designApproval?->confirmation);
+        self::assertTrue($item->isDesignApproved());
+        self::assertSame(Status::Todo, $item->status);
+        self::assertSame(Phase::Verify, $item->phase);
+        // The design gate is separate from the scope approval record.
+        self::assertTrue($item->isApproved());
+        $raw = (string) file_get_contents($this->store->itemPath('T-001'));
+        self::assertStringContainsString('design_hash', $raw);
+        self::assertStringContainsString('design_approval', $raw);
+        self::assertStringContainsString('Design updated for T-001', $output);
+        self::assertStringContainsString('hash: ', $output);
+        self::assertStringContainsString('Recorded design approval by adam at ', $output);
+        self::assertStringContainsString('— this certifies an explicit user confirmation of design hash ', $output);
+        self::assertStringContainsString('if confirmation was implicit, record it via workflow log T-001', $output);
+    }
+
+    public function testBareDesignApproveDefaultsToUnspecifiedAndSkipsConfirmation(): void
+    {
+        $this->succeed(['command' => 'design', 'id' => 'T-001', '--text' => 'Approved content', '--approve' => true]);
+
+        $item = $this->store->load('T-001');
+        self::assertSame('unspecified', $item->designApproval?->by);
+        self::assertNull($item->designApproval?->confirmation);
+        self::assertTrue($item->isDesignApproved());
+        self::assertStringNotContainsString('confirmation:', (string) file_get_contents($this->store->itemPath('T-001')));
+    }
+
+    public function testDesignApproveComposesWithPhaseAndStartFlags(): void
+    {
+        $this->staleBoard();
+        $this->succeed([
+            'command' => 'design', 'id' => 'T-001', '--text' => 'Approved content',
+            '--phase' => 'implement', '--start' => true, '--approve' => true,
+        ]);
+
+        $item = $this->store->load('T-001');
+        self::assertSame('Approved content', $item->section('Design'));
+        self::assertSame(Phase::Implement, $item->phase);
+        self::assertSame(Status::InProgress, $item->status);
+        self::assertTrue($item->isDesignApproved());
+        self::assertSame($item->designHash(), $item->designApproval?->hash);
+        self::assertTrue($item->isApproved());
+        $this->assertBoardRefreshed(Phase::Implement);
+    }
+
+    public function testContentOnlyDesignWriteStalesTheDesignApprovalButNotScopeApproval(): void
+    {
+        $this->succeed(['command' => 'design', 'id' => 'T-001', '--text' => 'Approved content', '--approve' => true]);
+        $this->succeed(['command' => 'design', 'id' => 'T-001', '--text' => 'Revised content']);
+
+        $item = $this->store->load('T-001');
+        self::assertSame('Revised content', $item->section('Design'));
+        self::assertTrue($item->hasStaleDesignApproval());
+        self::assertTrue($item->isApproved());
+        self::assertSame(Status::Todo, $item->status);
+        self::assertSame(Phase::Verify, $item->phase);
+
+        [$exit, $output] = $this->runCli(['command' => 'brief', 'id' => 'T-001', '--for' => 'worker']);
+        self::assertSame(2, $exit, $output);
+        self::assertStringContainsString('stale design approval', $output);
+    }
+
+    public function testRoutineWritesKeepTheDesignApprovalCurrent(): void
+    {
+        $this->succeed(['command' => 'design', 'id' => 'T-001', '--text' => 'Approved content', '--approve' => true]);
+        $this->succeed(['command' => 'set', 'id' => 'T-001', 'assignments' => ['priority=7']]);
+        $this->succeed([
+            'command' => 'result', 'id' => 'T-001', '--role' => 'worker', '--status' => 'done',
+            '--finding' => 'Produced against the approved design.',
+        ]);
+        $this->succeed(['command' => 'plan', 'id' => 'T-001', '--text' => 'Revised Plan']);
+
+        $item = $this->store->load('T-001');
+        self::assertTrue($item->isDesignApproved());
+        self::assertTrue($item->isApproved());
+    }
+
+    public function testDesignApproveRefusesEpicsAndPreservesAllBytes(): void
+    {
+        $before = $this->snapshot();
+
+        [$exit, $output] = $this->runCli([
+            'command' => 'design', 'id' => 'E-001', '--text' => 'Epic scope map', '--approve' => true,
+        ]);
+
+        self::assertSame(2, $exit, $output);
+        self::assertStringContainsString('tasks and subtasks', $output);
+        self::assertSame($before, $this->snapshot());
+        self::assertNull($this->store->load('E-001')->designApproval);
+    }
+
+    public function testDesignApproveOnDoneUsesTheSharedFollowUpRefusal(): void
+    {
+        $this->verify();
+        $this->succeed(['command' => 'close', 'id' => 'T-001']);
+        $before = $this->snapshot();
+
+        [$exit, $output] = $this->runCli([
+            'command' => 'design', 'id' => 'T-001', '--text' => 'Original Design', '--approve' => true,
+        ]);
+
+        self::assertSame(2, $exit, $output);
+        self::assertStringContainsString('create a new follow-up item', $output);
+        self::assertStringContainsString('explicitly approve its scope', $output);
+        self::assertSame($before, $this->snapshot());
+    }
+
+    public function testDesignApproveDoesNotPromoteDraftStatus(): void
+    {
+        $this->succeed(['command' => 'new', 'title' => 'Draft task', '--parent' => 'E-001']);
+        $this->succeed(['command' => 'design', 'id' => 'T-002', '--text' => 'Approved content', '--approve' => true]);
+
+        $item = $this->store->load('T-002');
+        self::assertSame(Status::Draft, $item->status);
+        self::assertTrue($item->isDesignApproved());
+        self::assertNull($item->approval);
+    }
+
     #[DataProvider('commands')]
     public function testUnchangedCompletedContentWithPhaseOnlyIsNotANewHistoryGate(string $command): void
     {
