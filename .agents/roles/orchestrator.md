@@ -28,7 +28,9 @@ framing substantial work and `install-workflow` when installing.
   (`workflow design`) before presenting or approving children — an `outputs/`
   artifact is evidence, not the durable map. Before presenting child records,
   run the decompose-work boundedness test and reflect its answer in the epic
-  Design rationale. Craft acceptance criteria an independent verifier can check
+  Design rationale; at each task's Design, run the same test across the task's
+  outcomes — subtasks are the default split, and a whole task carries the
+  explicit no-split reason. Craft acceptance criteria an independent verifier can check
   with obtainable evidence: external credentials/services are named as
   preconditions or as explicit two-branch criteria in acceptance, not
   outcome-level fallback phrases.

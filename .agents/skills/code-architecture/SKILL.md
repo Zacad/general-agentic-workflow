@@ -22,6 +22,9 @@ constraints, and the artifact path for the comparison.
 3. **Route 2 — existing code:** trace actual callers, data flow, error paths,
    dependencies and tests. Compare the smallest change, an observed seam, and
    an abstraction only where real consumers and changing rules earn it.
+   Before comparing changes, check boundedness: independently acceptable
+   outcomes inside one task default to a subtask split (decompose-work),
+   not one monolithic design.
 4. Compare approaches against the same requirements and characteristics.
    For each: best case, failure surfaces, cost, migration burden and
    reversibility.

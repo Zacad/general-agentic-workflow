@@ -60,7 +60,7 @@ cat > .workflow/Architecture.md <<'EOF'
 
 The CLI owns the records; the owned output note is the sole deliverable.
 EOF
-workflow design E-001 --text "Scope map: T-001 owns .workflow/items/T-001/outputs/greeting.txt, covers the sole criterion, has no dependencies; integrate by checking exact bytes. One task, no subtasks: one independently acceptable note. No open risks."
+workflow design E-001 --text "Scope map: T-001 owns .workflow/items/T-001/outputs/greeting.txt, covers the sole criterion, has no dependencies; integrate by checking exact bytes. One task, no subtasks: the note is the sole independently acceptable outcome, so the task records an explicit no-split reason. No open risks."
 workflow design T-001 --text "Follow parent Design; write hello plus newline at the owned path; check with cmp. No open risks." --phase design
 workflow review E-001
 # After the user confirms the exact new child scope (epic scope is unchanged):

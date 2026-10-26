@@ -116,9 +116,12 @@ Include a coverage matrix and a decomposition rationale that, for each child,
 names the finer split considered (if any) and why the chosen boundary beats it —
 not only why subtasks were or were not useful, and answers the boundedness
 test: does the child bundle two or more independently acceptable outcomes?
-If so, split it or record the explicit broad-item reason. 'No finer split
-exists' or 'the finer split fails one-writer/one-outcome' are valid answers;
-silence or a bare 'no need' is not.
+If so, split it — at epic level into sibling tasks, inside a task into
+subtasks — or record the explicit broad-item reason. A task kept whole while
+its outcomes are independently acceptable is the exception; subtasks are the
+default decomposition under a task. 'No finer split exists' or 'the finer
+split fails one-writer/one-outcome' are valid answers; silence or a bare
+'no need' is not.
 The epic's `## Design` section is the durable map; record it before children are
 approved. An `outputs/` artifact is supporting evidence, not the durable map.
 Later evidence may revise decomposition; review/reapprove only affected changed
@@ -136,7 +139,9 @@ do not invalidate approval; changed scope does. Do not ask again for routine
 steps. Approval freshness and verification freshness are separate.
 
 Tasks and subtasks have a second, separate gate: implementation begins only
-after the solution design is presented to the user and approved. Record that
+after the solution design is presented to the user and approved. A task
+Design states its subtask decomposition — the subtask map, or the explicit
+reason no finer split exists. Record that
 approval with `workflow design <id> --approve` in the same mutation that
 writes the Design; the CLI refuses worker dispatch without it ('design not
 approved' / 'stale design approval'). Scope approval survives Design
@@ -180,9 +185,12 @@ point and a persisted history store are each deliverables. Prefer the smallest
 child that still has one independently acceptable outcome: a child is too coarse
 when its acceptance cannot be verified in one focused worker-and-verifier pass,
 or when it bundles two or more separately acceptable outcomes under one writer.
-In that case split by deliverable, or record the explicit broad-item reason.
-Bundling needs the same stated justification as splitting. Use explorers for
-missing evidence and subtasks only for parts with their own outcome/path.
+In that case split by deliverable — subtasks under the task, sibling tasks
+at epic level — or record the explicit broad-item reason. Bundling needs the
+same stated justification as splitting. Use explorers for missing evidence.
+Decompose tasks into subtasks for parts with their own outcome and path — by
+default; a task without subtasks carries the explicit no-split reason in its
+Design.
 About three independent questions, 2,000 words or ten searches signal a sizing
 review, not a gate. A broad item needs an explicit reason; preserve one writer
 for one voice.

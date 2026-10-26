@@ -20,7 +20,8 @@ policy; use this procedure to choose boundaries, not to add process gates.
    than one independently acceptable outcome? If either fails, propose the
    finer split or record the explicit broad-item reason in the rationale —
    pipeline nodes are steps of one deliverable; separately acceptable modules
-   (delivery, CLI, history) are each deliverables.
+   (delivery, CLI, history) are each deliverables. An over-bundled task
+   defaults to subtasks; only the explicit broad-item reason keeps it whole.
 2. Separate missing evidence from deliverables. Assign one bounded explorer
    question per independent dimension, with sources, stop condition and a
    repository-relative `.workflow/items/<ID>/outputs/` target. Discovery may run
@@ -29,9 +30,11 @@ policy; use this procedure to choose boundaries, not to add process gates.
 3. From evidence, place the scope map in **epic Design only**: candidate children,
    acceptance coverage, dependencies, ownership, integration and unknowns.
    Child designs reference that map and add only local decisions/checks.
-4. Draft the next useful children and use `depends_on` for ordering. Choose
-   subtasks only for independently acceptable parts under a task; otherwise
-   retain one deliverable and one writer, adding evidence questions as needed.
+4. Draft the next useful children and use `depends_on` for ordering. Default to
+   subtasks: each independently acceptable part under a task becomes a subtask
+   with its own scope/path; keep one deliverable under the task itself only
+   when no finer split exists or the pieces would write the same paths, and
+   record that reason.
 5. Record, per child, why these boundaries beat the finer alternative
    considered, why subtasks were/weren't useful, and explicit triggers for
    deferred work. Unexplored is not deferred. Apply AGENTS' sizing signals as
@@ -55,6 +58,9 @@ review, not gates:
 - an explorer needing more than about ten searches;
 - a worker needing dozens of edits or a second full draft;
 - inability to name one artifact outline and a small set of checks.
+
+More than one deliverable inside one task is the subtask trigger, not only a
+sizing review.
 
 Split by dimension or deliverable. When the pieces would all write the same
 file, keep one writer and add explorer questions instead. If an independently
