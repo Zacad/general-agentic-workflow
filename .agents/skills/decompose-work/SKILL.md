@@ -42,6 +42,9 @@ policy; use this procedure to choose boundaries, not to add process gates.
 
 ## Sizing cues
 
+Providing small, clear and well scoped wor items with clear boundries is very **important**.
+Default decomposition should be ecpi->tasks->subtasks. Sub tasks help focus on simple goal and parallelize work.
+Opt-out from decompose into subtasks must be explicitely justify.
 Prefer the smallest child that still has one independently acceptable outcome;
 avoid paragraph-sized fragments and multi-question bundles. A child should be
 completable in one focused session. These are advisory signals for a sizing
