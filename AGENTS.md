@@ -1,6 +1,6 @@
 # Project workflow rules
 
-Always load skills 'clear-communication' and 'critical reasoning'.
+Always load skills 'clear-communication' and 'critical reasoning' on the very begining before you do anything else.
 
 This is the canonical operating contract. Every role loads the project's root
 `AGENTS.md`, including when used separately.
