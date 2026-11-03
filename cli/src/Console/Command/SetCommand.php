@@ -124,7 +124,7 @@ final class SetCommand extends BaseCommand
     {
         $status = Status::tryFrom(strtolower($value));
         if ($status === null) {
-            throw new WorkflowException('Invalid status: use draft, todo, in-progress, done or cancelled.');
+            throw new WorkflowException('Invalid status: use draft, todo, in-progress, waiting-external, done or cancelled.');
         }
 
         return $status;

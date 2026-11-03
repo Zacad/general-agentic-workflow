@@ -27,6 +27,7 @@ final class ApproveCommand extends BaseCommand
             ->addArgument('id', InputArgument::REQUIRED, 'Item ID.')
             ->addOption('by', null, InputOption::VALUE_REQUIRED, 'Who approved; "unspecified" when omitted.')
             ->addOption('confirmation', null, InputOption::VALUE_REQUIRED, 'Recorded user confirmation quote for this approval.')
+            ->addOption('delta', null, InputOption::VALUE_NONE, 'Delta approval: approve only non-material changes.')
             ->addOption('json', null, InputOption::VALUE_NONE, 'Emit JSON.');
     }
 
@@ -39,11 +40,27 @@ final class ApproveCommand extends BaseCommand
             $by = 'unspecified';
         }
         $confirmation = trim((string) $input->getOption('confirmation'));
+        $isDelta = (bool) $input->getOption('delta');
         $at = Clock::now();
 
-        $result = $this->store($input)->mutate($id, function (Item $item) use ($by, $confirmation, $at): array {
+        $store = $this->store($input);
+        $item = $store->load($id);
+
+        // Check for material changes if delta approval
+        if ($isDelta) {
+            $detector = new \Workflow\Support\ChangeDetector();
+            $changes = $detector->detect($item, $item->lastApprovedScope);
+            if ($changes['has_material']) {
+                $output->writeln('<error>Cannot use --delta: material changes detected. Run "workflow change '.$id.'" for details.</error>');
+
+                return self::INVALID;
+            }
+        }
+
+        $result = $store->mutate($id, function (Item $item) use ($by, $confirmation, $at): array {
             $hash = $item->scopeHash();
             $item->approval = new Approval($at, $by, $hash, $confirmation !== '' ? $confirmation : null);
+            $item->lastApprovedScope = $item->snapshotScope();
             if ($item->status === Status::Draft) {
                 $item->status = Status::Todo;
             }
@@ -70,8 +87,10 @@ final class ApproveCommand extends BaseCommand
             return self::SUCCESS;
         }
 
+        $approvalType = $isDelta ? 'Delta approved' : 'Approved';
         $output->writeln(sprintf(
-            'Approved %s by %s',
+            '%s %s by %s',
+            $approvalType,
             ScopeOutput::literal($result['id']),
             ScopeOutput::literal($result['by']),
         ), OutputInterface::OUTPUT_RAW);

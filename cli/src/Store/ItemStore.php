@@ -38,7 +38,122 @@ final class ItemStore
 
     public function itemPath(string $id): string
     {
-        return $this->itemsDir().'/'.$id.'/item.md';
+        // First try nested path
+        $nestedPath = $this->itemsDir().'/'.$this->relativeItemPath($id);
+        if (is_file($nestedPath)) {
+            return $nestedPath;
+        }
+
+        // Fallback to flat path (for backward compatibility before migration)
+        $flatPath = $this->itemsDir().'/'.$id.'/item.md';
+        if (is_file($flatPath)) {
+            return $flatPath;
+        }
+
+        // Return nested path as default (for new items)
+        return $nestedPath;
+    }
+
+    /**
+     * Compute the relative path for an item based on its parent hierarchy.
+     * This traverses the parent chain to build the nested structure.
+     */
+    public function relativeItemPath(string $id): string
+    {
+        $chain = $this->parentChain($id);
+        $chain[] = $id;
+
+        return implode('/', $chain).'/item.md';
+    }
+
+    /**
+     * Build the parent chain for an item (ancestors only, not including the item itself).
+     *
+     * @return list<string>
+     */
+    private function parentChain(string $id): array
+    {
+        $chain = [];
+        $current = $id;
+        $visited = [$id => true];
+
+        while (true) {
+            // Find the item file (could be flat or nested)
+            $itemPath = $this->findItemFile($current);
+            if ($itemPath === null) {
+                // Item doesn't exist
+                break;
+            }
+
+            $raw = file_get_contents($itemPath);
+            if ($raw === false) {
+                break;
+            }
+
+            try {
+                $parsed = FrontMatter::parse($raw);
+                $parent = $parsed['data']['parent'] ?? null;
+            } catch (\Exception) {
+                // Malformed item, stop traversing
+                break;
+            }
+
+            if ($parent === null || !is_string($parent) || $parent === '') {
+                break;
+            }
+
+            if (isset($visited[$parent])) {
+                // Circular reference detected
+                break;
+            }
+
+            $visited[$parent] = true;
+            array_unshift($chain, $parent);
+            $current = $parent;
+        }
+
+        return $chain;
+    }
+
+    /**
+     * Find the item.md file for a given ID, searching both flat and nested structures.
+     */
+    private function findItemFile(string $id): ?string
+    {
+        // Try flat path first (fastest)
+        $flatPath = $this->itemsDir().'/'.$id.'/item.md';
+        if (is_file($flatPath)) {
+            return $flatPath;
+        }
+
+        // Search recursively in nested structure
+        $found = null;
+        $this->findItemRecursive($this->itemsDir(), $id, $found);
+        
+        return $found;
+    }
+
+    /**
+     * Recursively search for an item file.
+     */
+    private function findItemRecursive(string $directory, string $targetId, ?string &$found): void
+    {
+        if ($found !== null) {
+            return; // Already found
+        }
+
+        foreach (glob($directory.'/*', GLOB_ONLYDIR) ?: [] as $subdir) {
+            $basename = basename($subdir);
+            $itemFile = $subdir.'/item.md';
+
+            if ($basename === $targetId && is_file($itemFile)) {
+                $found = $itemFile;
+                return;
+            }
+
+            // Recurse into subdirectories
+            $this->findItemRecursive($subdir, $targetId, $found);
+        }
     }
 
     public function exists(string $id): bool
@@ -52,13 +167,30 @@ final class ItemStore
     public function ids(): array
     {
         $ids = [];
-        foreach (glob($this->itemsDir().'/*', GLOB_ONLYDIR) ?: [] as $directory) {
-            $ids[] = basename($directory);
-        }
-
+        $this->collectIds($this->itemsDir(), $ids);
         sort($ids, SORT_NATURAL);
 
         return $ids;
+    }
+
+    /**
+     * Recursively collect item IDs from nested directory structure.
+     *
+     * @param list<string> $ids
+     */
+    private function collectIds(string $directory, array &$ids): void
+    {
+        foreach (glob($directory.'/*', GLOB_ONLYDIR) ?: [] as $subdir) {
+            $basename = basename($subdir);
+            $itemFile = $subdir.'/item.md';
+
+            if (is_file($itemFile)) {
+                $ids[] = $basename;
+            }
+
+            // Recurse into subdirectories (for nested items)
+            $this->collectIds($subdir, $ids);
+        }
     }
 
     /**

@@ -9,13 +9,16 @@ use Symfony\Component\Console\Input\InputOption;
 use Workflow\Console\Command\ApproveCommand;
 use Workflow\Console\Command\BoardCommand;
 use Workflow\Console\Command\BriefCommand;
+use Workflow\Console\Command\ChangeCommand;
 use Workflow\Console\Command\CloseCommand;
 use Workflow\Console\Command\DecideCommand;
 use Workflow\Console\Command\DepsCommand;
 use Workflow\Console\Command\DesignCommand;
+use Workflow\Console\Command\ExternalDepsCommand;
 use Workflow\Console\Command\InitCommand;
 use Workflow\Console\Command\InstallCommand;
 use Workflow\Console\Command\LogCommand;
+use Workflow\Console\Command\MigrateCommand;
 use Workflow\Console\Command\NewCommand;
 use Workflow\Console\Command\PlanCommand;
 use Workflow\Console\Command\ReadyCommand;
@@ -30,7 +33,7 @@ final class Application extends \Symfony\Component\Console\Application
 {
     public function __construct()
     {
-        parent::__construct('workflow', '5.0.0');
+        parent::__construct('workflow', '5.1.0');
 
         $this->addCommands([
             new InitCommand(),
@@ -52,6 +55,9 @@ final class Application extends \Symfony\Component\Console\Application
             new BoardCommand(),
             new ShowCommand(),
             new InstallCommand(),
+            new ExternalDepsCommand(),
+            new ChangeCommand(),
+            new MigrateCommand(),
         ]);
     }
 
