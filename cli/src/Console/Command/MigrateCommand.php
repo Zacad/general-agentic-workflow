@@ -261,14 +261,14 @@ final class MigrateCommand extends BaseCommand
         foreach (glob($backupDir.'/*', GLOB_ONLYDIR) ?: [] as $remaining) {
             $basename = basename($remaining);
             $to = $itemsDir.'/'.$basename;
-            
+
             // Check if this is an item directory (has item.md)
             $itemFile = $remaining.'/item.md';
             if (!is_file($itemFile)) {
                 // Not an item directory, skip (might be a parent created during migration)
                 continue;
             }
-            
+
             if (!is_dir($to)) {
                 // Target doesn't exist, move the whole directory
                 if (!rename($remaining, $to)) {
@@ -276,13 +276,22 @@ final class MigrateCommand extends BaseCommand
                     throw new WorkflowException('Cannot move remaining item: '.$basename);
                 }
             } else {
-                // Target exists (created during migration for child items)
-                // Move just the item.md file
-                $toItemFile = $to.'/item.md';
-                if (!is_file($toItemFile)) {
-                    if (!rename($itemFile, $toItemFile)) {
+                // Target exists (created during migration for child items).
+                // Move every remaining entry — item.md and outputs/ alike —
+                // so the parent's own artifact directory is not orphaned.
+                foreach (scandir($remaining) ?: [] as $entry) {
+                    if ($entry === '.' || $entry === '..') {
+                        continue;
+                    }
+                    $entrySource = $remaining.'/'.$entry;
+                    $entryTarget = $to.'/'.$entry;
+                    if (is_file($entryTarget) || is_dir($entryTarget)) {
+                        // Preserve anything the migration already placed here.
+                        continue;
+                    }
+                    if (!rename($entrySource, $entryTarget)) {
                         $this->rollbackMigration($itemsDir, $backupDir, $moved);
-                        throw new WorkflowException('Cannot move item file: '.$basename);
+                        throw new WorkflowException('Cannot move entry: '.$basename.'/'.$entry);
                     }
                 }
             }

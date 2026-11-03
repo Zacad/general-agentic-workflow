@@ -38,16 +38,16 @@ final class ItemValidator
         $items = [];
         $records = [];
         foreach ($this->store->ids() as $directoryId) {
-            $itemDirectory = $this->store->itemsDir().'/'.$directoryId;
+            $itemPath = $this->store->itemPath($directoryId);
+            $itemDirectory = dirname($itemPath);
             $this->validateDirectory($itemDirectory, $directoryId, $result);
 
-            $path = $itemDirectory.'/item.md';
-            if (!is_file($path)) {
+            if (!is_file($itemPath)) {
                 $result->error(sprintf('%s: item.md is missing.', $directoryId));
                 continue;
             }
 
-            $raw = file_get_contents($path);
+            $raw = file_get_contents($itemPath);
             if ($raw === false) {
                 $result->error(sprintf('%s: item.md is unreadable.', $directoryId));
                 continue;
@@ -100,7 +100,12 @@ final class ItemValidator
             if (in_array($entry, ['.', '..', 'item.md', 'outputs'], true)) {
                 continue;
             }
-            $result->error(sprintf('%s: unexpected entry "%s" (only item.md and outputs/ are allowed).', $id, $entry));
+            // A subdirectory that itself holds an item.md is a child item
+            // under the hierarchical layout (see AGENTS.md), not a stray entry.
+            if (is_dir($directory.'/'.$entry) && is_file($directory.'/'.$entry.'/item.md')) {
+                continue;
+            }
+            $result->error(sprintf('%s: unexpected entry "%s" (only item.md, outputs/ and child item directories are allowed).', $id, $entry));
         }
 
         if (is_file($directory.'/outputs')) {
@@ -406,7 +411,7 @@ final class ItemValidator
         $candidates = [
             $root.$normalized,
             rtrim($this->store->workflowDir(), '/').'/'.$normalized,
-            rtrim($this->store->itemsDir().'/'.$item->id, '/').'/'.$normalized,
+            rtrim(dirname($this->store->itemPath($item->id)), '/').'/'.$normalized,
         ];
 
         foreach ($candidates as $candidate) {
@@ -489,7 +494,7 @@ final class ItemValidator
     private function validateArtifacts(array $items, ValidationResult $result): void
     {
         foreach ($items as $item) {
-            $itemDirectory = $this->store->itemsDir().'/'.$item->id;
+            $itemDirectory = dirname($this->store->itemPath($item->id));
             foreach ($item->artifacts as $artifact) {
                 if (str_starts_with($artifact, 'http://') || str_starts_with($artifact, 'https://')) {
                     continue;

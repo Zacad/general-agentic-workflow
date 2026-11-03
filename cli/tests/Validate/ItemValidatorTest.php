@@ -444,4 +444,59 @@ final class ItemValidatorTest extends WorkflowTestCase
         $warnings = implode("\n", (new ItemValidator($this->store))->validate()->warnings);
         self::assertStringNotContainsString('design approval has no recorded confirmation quote', $warnings);
     }
+
+    /**
+     * After `workflow migrate`, items live at nested paths and parent item
+     * directories legitimately contain child item directories. The validator
+     * must find them and not call those children "unexpected entries".
+     */
+    public function testHierarchicalLayoutValidatesCleanly(): void
+    {
+        // Create the epic flat first, then place its task as a nested child
+        // manually to mimic post-migration disk layout.
+        $this->store->create($this->make('E-001', Kind::Epic));
+        $task = $this->make('T-001', Kind::Task, 'E-001');
+        $nestedDir = $this->store->itemsDir().'/E-001/T-001';
+        mkdir($nestedDir, 0777, true);
+        file_put_contents($nestedDir.'/item.md', FrontMatter::render($task->toArray(), $task->body));
+        // Give the epic an outputs/ directory and a child item directory —
+        // both are legal entries in a parent item directory.
+        mkdir($this->store->itemsDir().'/E-001/outputs', 0777, true);
+
+        $result = (new ItemValidator($this->store))->validate();
+
+        $errors = implode("\n", $result->errors);
+        self::assertStringNotContainsString('unreadable', $errors);
+        self::assertStringNotContainsString('unexpected entry', $errors);
+        self::assertStringNotContainsString('item.md is missing', $errors);
+    }
+
+    public function testStrayFileInsideNestedItemDirectoryIsStillDetected(): void
+    {
+        $this->store->create($this->make('E-001', Kind::Epic));
+        $task = $this->make('T-001', Kind::Task, 'E-001');
+        $nestedDir = $this->store->itemsDir().'/E-001/T-001';
+        mkdir($nestedDir, 0777, true);
+        file_put_contents($nestedDir.'/item.md', FrontMatter::render($task->toArray(), $task->body));
+        file_put_contents($nestedDir.'/notes.txt', 'stray');
+
+        $errors = implode("\n", (new ItemValidator($this->store))->validate()->errors);
+
+        self::assertStringContainsString('T-001: unexpected entry "notes.txt"', $errors);
+    }
+
+    public function testArtifactResolvesInsideNestedItemDirectory(): void
+    {
+        $this->store->create($this->make('E-001', Kind::Epic));
+        $task = $this->make('T-001', Kind::Task, 'E-001');
+        $nestedDir = $this->store->itemsDir().'/E-001/T-001';
+        mkdir($nestedDir.'/outputs', 0777, true);
+        file_put_contents($nestedDir.'/outputs/evidence.md', 'evidence');
+        $task->artifacts = ['outputs/evidence.md'];
+        file_put_contents($nestedDir.'/item.md', FrontMatter::render($task->toArray(), $task->body));
+
+        $warnings = implode("\n", (new ItemValidator($this->store))->validate()->warnings);
+
+        self::assertStringNotContainsString('artifact not found: outputs/evidence.md', $warnings);
+    }
 }
