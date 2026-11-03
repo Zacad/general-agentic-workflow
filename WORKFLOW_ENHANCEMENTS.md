@@ -4,58 +4,52 @@
 
 Three major enhancements have been implemented to address workflow pain points:
 
-1. **waiting-external status** - Handle tasks with external dependencies (PR reviews, stakeholder approvals)
+1. **review status** - Handle tasks requiring additional review before closure (PR reviews, orchestrator review, iteration)
 2. **Change classification** - Distinguish material vs non-material changes for smarter approval
 3. **Hierarchical structure** - Organize items in nested directories with migration support
 
-## 1. waiting-external Status
+## 1. review Status
 
 ### Problem
-Tasks were closing too quickly when work had external dependencies (e.g., PR reviews). New tasks had to be created for follow-up work.
+Tasks were closing too quickly when work required additional review or iteration (e.g., PR reviews, orchestrator feedback). New tasks had to be created for follow-up work.
 
 ### Solution
-Added a new `waiting-external` status that tasks can enter after verification when external dependencies exist.
+Added a new `review` status that tasks can enter after verification when additional review is needed. Use progress notes to document what's pending.
 
 ### Usage
 
 ```bash
-# Set task to waiting-external after verification
-workflow set T-001 status=waiting-external
+# Set task to review after verification
+workflow set T-001 status=review
 
-# Add external dependencies
-workflow external-deps T-001 add --type pr-review --description "Code review on PR #123"
-workflow external-deps T-001 add --type stakeholder --description "Product owner sign-off"
+# Document what's pending using progress notes
+workflow log T-001 "Awaiting PR review on #123"
+workflow log T-001 "Need orchestrator feedback on design approach"
 
-# List dependencies
-workflow external-deps T-001 list
-
-# Update dependency status
-workflow external-deps T-001 update --index 1 --status satisfied
-
-# Remove dependency
-workflow external-deps T-001 remove --index 2
-
-# When all dependencies satisfied, return to in-progress or close
+# When review feedback is received, return to in-progress
 workflow set T-001 status=in-progress
-workflow close T-001 --reason "All external dependencies satisfied"
+workflow log T-001 "Addressed PR comments, ready for final verification"
+
+# Or close directly if no further work needed
+workflow close T-001 --reason "Review completed, all feedback addressed"
 ```
 
 ### Status Display
-The `workflow status` command now shows a separate section for `waiting-external` items:
+The `workflow status` command now shows a separate section for `review` items:
 
 ```
 active (2)
   T-001    worker    2h   Implement feature X
 
-waiting-external (1)
-  T-002    1h   Review API design  (2 pending)
+review (1)
+  T-002    1h   Review API design
 ```
 
 ### Implementation Details
-- New status: `Status::WaitingExternal`
-- New field: `external_dependencies` in item YAML
-- New command: `external-deps` for managing dependencies
-- Dependencies have: type, description, status (pending/satisfied/waived)
+- New status: `Status::Review`
+- No explicit dependency tracking - use progress notes instead
+- Simpler and more general than tracking external dependencies
+- Works for both external (PR reviews) and internal (orchestrator review) scenarios
 
 ## 2. Change Classification
 
@@ -176,7 +170,7 @@ The migration:
 All existing tests pass (742 tests, 5889 assertions).
 
 Key test updates:
-- `CoordinationProjectionTest` updated to include `waiting_external` in JSON schema
+- `CoordinationProjectionTest` updated to include `review` in JSON schema
 - All structural tests pass with backward compatibility
 
 ## Migration Guide
@@ -184,7 +178,7 @@ Key test updates:
 ### For New Projects
 No action needed. New projects automatically use:
 - Nested directory structure
-- waiting-external status available
+- review status available
 - Change classification on approval
 
 ### For Existing Projects
@@ -207,9 +201,9 @@ No action needed. New projects automatically use:
 
 4. **Start using new features**:
    ```bash
-   # Use waiting-external for tasks with PR reviews
-   workflow set T-001 status=waiting-external
-   workflow external-deps T-001 add --type pr-review --description "PR #123"
+   # Use review status for tasks needing additional review
+   workflow set T-001 status=review
+   workflow log T-001 "Awaiting PR review on #123"
    
    # Check changes before approval
    workflow change T-002
@@ -219,8 +213,8 @@ No action needed. New projects automatically use:
 ## Files Changed
 
 ### Core Domain
-- `cli/src/Domain/Status.php` - Added WaitingExternal case
-- `cli/src/Domain/Item.php` - Added external_dependencies and last_approved_scope fields
+- `cli/src/Domain/Status.php` - Added Review case
+- `cli/src/Domain/Item.php` - Added last_approved_scope field
 
 ### Store Layer
 - `cli/src/Store/ItemStore.php` - Nested path computation, recursive ID collection, backward compatibility
@@ -229,10 +223,9 @@ No action needed. New projects automatically use:
 - `cli/src/Console/Application.php` - Registered new commands
 - `cli/src/Console/Command/SetCommand.php` - Updated status validation
 - `cli/src/Console/Command/ApproveCommand.php` - Added --delta flag, saves approved scope
-- `cli/src/Console/Command/StatusCommand.php` - Shows waiting-external section
+- `cli/src/Console/Command/StatusCommand.php` - Shows review section
 
 ### New Commands
-- `cli/src/Console/Command/ExternalDepsCommand.php` - Manage external dependencies
 - `cli/src/Console/Command/ChangeCommand.php` - Detect and classify changes
 - `cli/src/Console/Command/MigrateCommand.php` - Migrate flat to nested structure
 
@@ -245,17 +238,15 @@ No action needed. New projects automatically use:
 ## Future Enhancements
 
 Potential improvements:
-1. **Auto-detect waiting-external**: Suggest waiting-external status when PR review is mentioned
-2. **Change preview**: Show diff of what changed before approval
-3. **Selective migration**: Migrate specific epics instead of all at once
-4. **External dependency templates**: Predefined dependency types (pr-review, stakeholder, etc.)
-5. **Batch delta approval**: Approve multiple non-material changes at once
+1. **Change preview**: Show diff of what changed before approval
+2. **Selective migration**: Migrate specific epics instead of all at once
+3. **Batch delta approval**: Approve multiple non-material changes at once
 
 ## Rollback Plan
 
 If issues arise:
 1. Hierarchical structure: Backup exists at `.workflow/items.backup/`
-2. waiting-external: Can set status back to in-progress
+2. review status: Can set status back to in-progress
 3. Change classification: Old approvals still valid; new field is additive
 
 To fully rollback:
@@ -271,7 +262,7 @@ git checkout HEAD -- cli/
 ## Summary
 
 These enhancements address the three pain points:
-1. ✅ Tasks no longer close prematurely when external dependencies exist
+1. ✅ Tasks no longer close prematurely when additional review is needed
 2. ✅ Items organized hierarchically for easier navigation
 3. ✅ Small additive changes don't require full re-approval
 

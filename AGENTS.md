@@ -71,12 +71,8 @@ aliases and component ancestry overlap, not globs, realpath or existence.
 One deliverable has one writer; parallel work needs satisfied dependencies
 and no active ownership overlap.
 
-Statuses: `draft`, `todo`, `in-progress`, `waiting-external`, `done`, `cancelled`.
-The `waiting-external` status indicates a task is blocked by external dependencies
-(PR reviews, stakeholder approvals, third-party APIs). Track dependencies with
-`workflow external-deps <id> add/update/remove/list`. A task in `waiting-external`
-remains open until all external dependencies are satisfied or waived, preventing
-premature closure when external input is needed.
+Statuses: `draft`, `todo`, `in-progress`, `review`, `done`, `cancelled`.
+The `review` status indicates a task has completed internal verification but requires additional review before closure (e.g., external PR review, orchestrator review, or additional iteration). Items in `review` remain open and visible in status output. Use progress notes to document what's pending.
 Phases: `plan`, `explore`, `design`, `implement`, `verify`. Phase does not imply
 status. These guide work, not a mandatory state machine. The CLI enforces
 structural integrity and current-verification completion; missing Plan/Design
@@ -275,30 +271,6 @@ Resume with `workflow status` and one role-specific brief; use `ready` to
 choose work. Defaults are bounded; `status --all` is exhaustive, including
 terminal groups. Do not reconstruct session memory from reports. Ask the
 user only about scope or a real decision.
-
-## External dependencies and waiting-external
-
-When a task completes internal verification but requires external input (PR
-reviews, stakeholder sign-off, third-party API availability), transition to
-`waiting-external` instead of closing:
-
-```bash
-# After verification passes
-workflow set T-001 status=waiting-external
-workflow external-deps T-001 add --type pr-review --description "Review PR #123"
-workflow external-deps T-001 add --type stakeholder --description "Product owner approval"
-
-# When external dependencies are satisfied
-workflow external-deps T-001 update --index 1 --status satisfied
-workflow external-deps T-001 update --index 2 --status satisfied
-workflow set T-001 status=in-progress
-# Complete final verification and close
-```
-
-Tasks in `waiting-external` remain open and visible in `workflow status`. They
-block dependent tasks just like `in-progress` tasks. This prevents the pattern
-of closing a task, receiving external feedback, then creating a new task for
-what is essentially continuation work.
 
 ## Migration from flat to hierarchical structure
 

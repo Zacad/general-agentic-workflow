@@ -14,7 +14,6 @@ use Workflow\Console\Command\CloseCommand;
 use Workflow\Console\Command\DecideCommand;
 use Workflow\Console\Command\DepsCommand;
 use Workflow\Console\Command\DesignCommand;
-use Workflow\Console\Command\ExternalDepsCommand;
 use Workflow\Console\Command\InitCommand;
 use Workflow\Console\Command\InstallCommand;
 use Workflow\Console\Command\LogCommand;
@@ -33,7 +32,7 @@ final class Application extends \Symfony\Component\Console\Application
 {
     public function __construct()
     {
-        parent::__construct('workflow', '5.1.0');
+        parent::__construct('workflow', '5.2.0');
 
         $this->addCommands([
             new InitCommand(),
@@ -55,7 +54,6 @@ final class Application extends \Symfony\Component\Console\Application
             new BoardCommand(),
             new ShowCommand(),
             new InstallCommand(),
-            new ExternalDepsCommand(),
             new ChangeCommand(),
             new MigrateCommand(),
         ]);

@@ -142,12 +142,12 @@ final class CoordinationProjectionTest extends WorkflowTestCase
     {
         $expected = $this->seed();
         $data = json_decode($this->runCli(['command' => 'status', '--json' => true]), true, flags: JSON_THROW_ON_ERROR);
-        self::assertSame(['project', 'active', 'drafts', 'waiting_external', 'ready', 'waiting', 'decisions', 'counts'], array_keys($data));
+        self::assertSame(['project', 'active', 'drafts', 'review', 'ready', 'waiting', 'decisions', 'counts'], array_keys($data));
         self::assertSame(basename($this->root), $data['project']);
         foreach (['active', 'drafts', 'ready', 'waiting', 'decisions'] as $group) {
             self::assertSame($expected[$group], $this->jsonIds($data, $group), $group);
         }
-        self::assertSame(['draft' => 8, 'todo' => 32, 'in-progress' => 13, 'waiting-external' => 0, 'done' => 12, 'cancelled' => 11], $data['counts']);
+        self::assertSame(['draft' => 8, 'todo' => 32, 'in-progress' => 13, 'review' => 0, 'done' => 12, 'cancelled' => 11], $data['counts']);
         self::assertArrayNotHasKey('done', $data);
         self::assertArrayNotHasKey('cancelled', $data);
     }

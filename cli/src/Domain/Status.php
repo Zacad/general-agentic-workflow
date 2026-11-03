@@ -9,7 +9,7 @@ enum Status: string
     case Draft = 'draft';
     case Todo = 'todo';
     case InProgress = 'in-progress';
-    case WaitingExternal = 'waiting-external';
+    case Review = 'review';
     case Done = 'done';
     case Cancelled = 'cancelled';
 

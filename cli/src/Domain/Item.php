@@ -13,7 +13,7 @@ final class Item
         'id', 'kind', 'parent', 'title', 'status', 'phase', 'priority',
         'depends_on', 'owns', 'artifacts', 'approval', 'design_approval',
         'last_result', 'verified_at', 'created', 'updated', 'outcome', 'scope',
-        'acceptance', 'external_dependencies', 'last_approved_scope',
+        'acceptance', 'last_approved_scope',
     ];
 
     /**
@@ -25,7 +25,6 @@ final class Item
      * @param list<string>              $acceptance
      * @param array<string, mixed>|null $lastResult
      * @param array<string, mixed>      $extra
-     * @param list<array{type: string, description: string, status: string}> $externalDependencies
      * @param array{outcome: string, scope_in: list<string>, scope_out: list<string>, acceptance: list<string>, depends_on: list<string>, owns: list<string>, title: string, parent: ?string}|null $lastApprovedScope
      */
     public function __construct(
@@ -50,7 +49,6 @@ final class Item
         public array $acceptance,
         public string $body,
         public array $extra = [],
-        public array $externalDependencies = [],
         public ?array $lastApprovedScope = null,
     ) {
     }
@@ -91,7 +89,6 @@ final class Item
         $approval = is_array($data['approval'] ?? null) ? Approval::fromArray($data['approval']) : null;
         $designApproval = is_array($data['design_approval'] ?? null) ? Approval::fromArray($data['design_approval']) : null;
         $lastResult = is_array($data['last_result'] ?? null) ? $data['last_result'] : null;
-        $externalDependencies = self::externalDependencies($data['external_dependencies'] ?? []);
         $lastApprovedScope = self::lastApprovedScope($data['last_approved_scope'] ?? null);
 
         $item = new self(
@@ -116,7 +113,6 @@ final class Item
             acceptance: self::stringList($data['acceptance'] ?? []),
             body: $body,
             extra: array_diff_key($data, array_flip(self::KNOWN_KEYS)),
-            externalDependencies: $externalDependencies,
             lastApprovedScope: $lastApprovedScope,
         );
         $item->designApproval = $designApproval;
@@ -152,7 +148,6 @@ final class Item
                 'out' => array_values($this->scopeOut),
             ],
             'acceptance' => array_values($this->acceptance),
-            'external_dependencies' => $this->externalDependencies,
             'last_approved_scope' => $this->lastApprovedScope,
         ];
 
@@ -312,35 +307,6 @@ final class Item
         $text = trim((string) $value);
 
         return $text === '' ? null : $text;
-    }
-
-    /**
-     * @return list<array{type: string, description: string, status: string}>
-     */
-    private static function externalDependencies(mixed $value): array
-    {
-        if (!is_array($value)) {
-            return [];
-        }
-
-        $dependencies = [];
-        foreach ($value as $entry) {
-            if (!is_array($entry)) {
-                continue;
-            }
-            $type = trim((string) ($entry['type'] ?? ''));
-            $description = trim((string) ($entry['description'] ?? ''));
-            $status = trim((string) ($entry['status'] ?? 'pending'));
-            if ($type !== '' && $description !== '') {
-                $dependencies[] = [
-                    'type' => $type,
-                    'description' => $description,
-                    'status' => in_array($status, ['pending', 'satisfied', 'waived'], true) ? $status : 'pending',
-                ];
-            }
-        }
-
-        return $dependencies;
     }
 
     /**

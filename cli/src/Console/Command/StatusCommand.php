@@ -42,7 +42,7 @@ final class StatusCommand extends BaseCommand
 
         $active = array_values(array_filter($items, static fn (Item $item): bool => $item->status === Status::InProgress));
         $drafts = array_values(array_filter($items, static fn (Item $item): bool => $item->status === Status::Draft));
-        $waitingExternal = array_values(array_filter($items, static fn (Item $item): bool => $item->status === Status::WaitingExternal));
+        $review = array_values(array_filter($items, static fn (Item $item): bool => $item->status === Status::Review));
         $decisions = array_values(array_filter(
             $items,
             static fn (Item $item): bool => ($item->lastResult['status'] ?? null) === 'needs-decision'
@@ -67,7 +67,7 @@ final class StatusCommand extends BaseCommand
                 'project' => basename($store->root()),
                 'active' => array_map(fn (Item $item): array => $this->itemSummary($item), $active),
                 'drafts' => array_map(fn (Item $item): array => $this->itemSummary($item), $drafts),
-                'waiting_external' => array_map(fn (Item $item): array => $this->itemSummary($item), $waitingExternal),
+                'review' => array_map(fn (Item $item): array => $this->itemSummary($item), $review),
                 'ready' => array_map(static fn (array $row): array => [
                     'item' => $row['item']->id,
                     'title' => $row['item']->title,
@@ -113,12 +113,9 @@ final class StatusCommand extends BaseCommand
             return trim(sprintf('%-7s %-9s %-4s %s%s', $item->id, $role !== '' ? $role : '—', $age, Text::truncate($item->title, 60), $needs));
         }, $activeLimit);
 
-        if ($waitingExternal !== []) {
-            $this->section($output, 'waiting-external', $waitingExternal, static function (Item $item): string {
-                $pendingCount = count(array_filter($item->externalDependencies, static fn (array $dep): bool => $dep['status'] === 'pending'));
-                $suffix = sprintf('(%d pending)', $pendingCount);
-
-                return sprintf('%-7s %-4s %s %s', $item->id, Clock::age((string) ($item->updated)), Text::truncate($item->title, 50), $suffix);
+        if ($review !== []) {
+            $this->section($output, 'review', $review, static function (Item $item): string {
+                return sprintf('%-7s %-4s %s', $item->id, Clock::age((string) ($item->updated)), Text::truncate($item->title, 60));
             }, $summaryLimit);
         }
 
@@ -175,7 +172,7 @@ final class StatusCommand extends BaseCommand
         $output->writeln('');
         $output->writeln(sprintf(
             '%d open · %d done · %d cancelled',
-            $counts['draft'] + $counts['todo'] + $counts['in-progress'] + $counts['waiting-external'],
+            $counts['draft'] + $counts['todo'] + $counts['in-progress'] + $counts['review'],
             $counts['done'],
             $counts['cancelled'],
         ));
