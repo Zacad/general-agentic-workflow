@@ -31,10 +31,16 @@ Explorers, workers and verifiers read sources/artifacts in their own context.
 .workflow/
   PRD.md                 product requirements
   Architecture.md        design and project decisions
-  items/<ID>/item.md     YAML state and Markdown narrative
+  items/<ID>/item.md     YAML state and Markdown narrative (flat or nested)
   items/<ID>/outputs/    actual deliverables or evidence, only when needed
   board.html             generated, read-only view
 ```
+
+Items may be stored in a flat structure (`items/T-001/item.md`) or hierarchical
+structure (`items/E-001/T-001/item.md`) based on parent relationships. Both
+structures are supported. Use `workflow migrate` to convert flat to hierarchical.
+The hierarchical structure improves navigation for large projects while maintaining
+backward compatibility.
 
 Only `item.md` and optional `outputs/` belong inside an item directory. No
 per-attempt directories or staged project copies. Never delete failed or
@@ -65,7 +71,12 @@ aliases and component ancestry overlap, not globs, realpath or existence.
 One deliverable has one writer; parallel work needs satisfied dependencies
 and no active ownership overlap.
 
-Statuses: `draft`, `todo`, `in-progress`, `done`, `cancelled`.
+Statuses: `draft`, `todo`, `in-progress`, `waiting-external`, `done`, `cancelled`.
+The `waiting-external` status indicates a task is blocked by external dependencies
+(PR reviews, stakeholder approvals, third-party APIs). Track dependencies with
+`workflow external-deps <id> add/update/remove/list`. A task in `waiting-external`
+remains open until all external dependencies are satisfied or waived, preventing
+premature closure when external input is needed.
 Phases: `plan`, `explore`, `design`, `implement`, `verify`. Phase does not imply
 status. These guide work, not a mandatory state machine. The CLI enforces
 structural integrity and current-verification completion; missing Plan/Design
@@ -137,6 +148,18 @@ dependencies. `approve` prints those exact values with their scope hash.
 Status, phase, priority, owns, Plan/Design, decisions, artifacts and progress
 do not invalidate approval; changed scope does. Do not ask again for routine
 steps. Approval freshness and verification freshness are separate.
+
+**Change classification:** After approval, use `workflow change <id>` to inspect
+what changed. Changes are classified as:
+- **Material** (require full re-approval): outcome changes, scope removal,
+  dependency removal, owned path changes. Use `workflow approve <id>` for full
+  re-approval.
+- **Non-material** (delta approval sufficient): scope additions, dependency
+  additions, acceptance additions. Use `workflow approve <id> --delta` for
+  faster approval of additive changes only.
+
+The system tracks the last approved scope automatically. Delta approval validates
+that no material changes exist before approving.
 
 Tasks and subtasks have a second, separate gate: implementation begins only
 after the solution design is presented to the user and approved. A task
@@ -252,3 +275,49 @@ Resume with `workflow status` and one role-specific brief; use `ready` to
 choose work. Defaults are bounded; `status --all` is exhaustive, including
 terminal groups. Do not reconstruct session memory from reports. Ask the
 user only about scope or a real decision.
+
+## External dependencies and waiting-external
+
+When a task completes internal verification but requires external input (PR
+reviews, stakeholder sign-off, third-party API availability), transition to
+`waiting-external` instead of closing:
+
+```bash
+# After verification passes
+workflow set T-001 status=waiting-external
+workflow external-deps T-001 add --type pr-review --description "Review PR #123"
+workflow external-deps T-001 add --type stakeholder --description "Product owner approval"
+
+# When external dependencies are satisfied
+workflow external-deps T-001 update --index 1 --status satisfied
+workflow external-deps T-001 update --index 2 --status satisfied
+workflow set T-001 status=in-progress
+# Complete final verification and close
+```
+
+Tasks in `waiting-external` remain open and visible in `workflow status`. They
+block dependent tasks just like `in-progress` tasks. This prevents the pattern
+of closing a task, receiving external feedback, then creating a new task for
+what is essentially continuation work.
+
+## Migration from flat to hierarchical structure
+
+Existing projects with flat structure (`items/T-001/item.md`) can migrate to
+hierarchical structure (`items/E-001/T-001/item.md`) for better navigation:
+
+```bash
+# Preview migration (dry run)
+workflow migrate --dry-run
+
+# Execute migration (creates backup)
+workflow migrate
+
+# Rollback if needed
+rm -rf .workflow/items
+mv .workflow/items.backup .workflow/items
+```
+
+Migration preserves all item data, relationships, and history. It handles
+malformed items gracefully (skips them). Both flat and hierarchical structures
+are fully supported, so migration is optional but recommended for projects
+with many items.
