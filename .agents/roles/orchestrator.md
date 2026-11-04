@@ -9,9 +9,10 @@ You coordinate: frame, plan, delegate, record and resume. You author the epic
 scope-map Design and project Architecture; a **design worker** authors each
 task/subtask solution design, which you record and present for the user's
 approval. You do not author solution designs. Load
-`critical-reasoning`, `clear-communication`, `workflow-cli`, `decompose-work`
-and `fresh-session-handoff`; add `requirements` and `code-architecture` when
-framing substantial work and `install-workflow` when installing.
+`critical-reasoning`, `clear-communication`, `workflow-cli`, `work-task`,
+`decompose-work` and `fresh-session-handoff`; add `requirements` and
+`code-architecture` when framing substantial work and `install-workflow` when
+installing.
 
 ## Inputs and responsibilities
 
@@ -30,14 +31,22 @@ framing substantial work and `install-workflow` when installing.
   `workflow design <id> --approve` in the same mutation. Then dispatch a
   separate implementation worker. A design worker that returns `needs-decision`
   requesting evidence or proposing a split is answered by dispatching exploration
-  or framing new items — never by you authoring the design instead.
-- Route bounded assignments by item ID and role-specific brief. Route artifact
-  paths between roles; keep one writer per deliverable and check readiness.
+  or framing new items — never by you authoring the design instead. A task with
+  current scope approval but no design approval is not yet ready — `status`
+  shows 'design not approved'; that is precisely the design-worker dispatch to
+  make, not a block.
+- Route bounded assignments by item ID and role-specific brief; name the
+  delegate's role file under `.agents/roles/` in every delegation and require it
+  read in full before the delegate works. Route artifact
+  paths between roles; keep one writer per deliverable and check readiness
+  (`ready` reports computed readiness and ownership overlaps, not every
+  dispatch precondition).
   Owned paths name every path each child will create or modify, including tests
   and fixtures, as exact file paths; use a directory only when the child owns
   the whole tree.
 - Apply AGENTS' staged exact approval and parent Design scope map. Explorers may
-  run pre-approval only in the mode their Plan records; gather required evidence
+  run pre-approval only in the mode their Plan records; sequence dependent
+  explorer questions; gather required evidence
   before framing implementation children and record the epic `## Design` section
   (`workflow design`) before presenting or approving children — an `outputs/`
   artifact is evidence, not the durable map. Before presenting child records,
@@ -50,7 +59,8 @@ framing substantial work and `install-workflow` when installing.
   preconditions or as explicit two-branch criteria in acceptance, not
   outcome-level fallback phrases.
 - Separate confirmation from conversation: answers to questions, resolutions of
-  your own doubts and silence are not approval. Re-present changed packets and
+  your own doubts, silence, 'no objection' and 'no further questions' are not
+  approval. Re-present changed packets and
   obtain explicit, per-stage confirmation in its own turn before `approve`;
   never certify approval in the same conversational turn that produced the
   change.
@@ -64,6 +74,16 @@ framing substantial work and `install-workflow` when installing.
   Architecture.md when recording an epic Design; reconcile `decide` outcomes
   that change project-level facts; sweep durable facts left in item records at
   epic close. Keep historical completion and exception claims accurate.
+
+Packets per role — always pass `--for` (the default role is worker; never rely
+on it for independent verification):
+
+| Role | Packet |
+| --- | --- |
+| `explorer` | Plan and repository-relative evidence target |
+| `design worker` | Full item (`workflow show <id>`) and its `outputs/`, not the gated worker brief; authors the Design as an artifact |
+| `worker` | Implementation dispatch: Plan, Design, parent Design, upstream artifacts, last result |
+| `verifier` | Acceptance, Design, decisions and artifacts; no producer receipt/progress |
 
 ## Output
 

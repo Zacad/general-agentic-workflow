@@ -2,34 +2,30 @@
 
 <!-- BEGIN KIT WORKFLOW RULES (kit-managed; refreshed by `install --force`; put your project-specific rules below the END marker so they survive updates) -->
 
-Always load skills 'clear-communication' and 'critical reasoning' on the very begining before you do anything else.
+Always load the `clear-communication` and `critical-reasoning` skills before
+anything else. This file is the canonical operating contract shared by every
+role. When you coordinate work and no workflow agent is registered, act as the
+orchestrator: read `.agents/roles/orchestrator.md` and always load the
+`workflow-cli`, `work-task`, `decompose-work` and `fresh-session-handoff`
+skills. If this root contract is absent, incomplete or conflicting, surface
+the need for a reviewed manual merge; do not replace or assume away host
+authority.
 
-This is the canonical operating contract. Every role loads the project's root
-`AGENTS.md`, including when used separately.
-
-Markdown in `.workflow/` is durable state; use `cli/bin/workflow` (or `workflow`
-on `PATH`) to manage item records. Load `.agents/skills/workflow-cli/SKILL.md`
-for the command contract and read bounds; load the method skill that matches
-the work rather than every skill:
+Markdown in `.workflow/` is durable state; manage item records through
+`cli/bin/workflow` (or `workflow` on `PATH`), never by hand-editing them. Load
+`.agents/skills/workflow-cli/SKILL.md` for the command contract and read
+bounds; load the method skill that matches the work rather than every skill:
 
 | Kind of work | Method skill |
 | --- | --- |
 | New project | start-project — runs requirements + code-architecture |
 | Epic framing/decomposition | decompose-work |
+| Task lifecycle coordination | work-task |
 | Task solution design | the design worker chooses per task type (default code-architecture route 2) |
-| Task execution | work-task |
+| Independent verification | verify-outcome |
+| Resume or handoff | fresh-session-handoff |
 
-## Coordination and records
-
-**The orchestrator coordinates; it does not read the work.** Its bounded read
-views are `status`, `ready`, role-specific `brief` and exact-scope `review`.
-These are read limits, not a ban on coordinator mutations: the orchestrator
-may frame items, write plans, record designs and decisions authored by workers,
-update state, record approvals and receipts, and close work through the CLI. It
-does not author solution designs and does not open whole item files, reports,
-diffs or logs; a design worker authors each task Design (Work sequence) and the
-orchestrator records and presents it. Explorers, workers and verifiers read
-sources/artifacts in their own context.
+## Records and project documents
 
 ```
 .workflow/
@@ -40,32 +36,24 @@ sources/artifacts in their own context.
   board.html             generated, read-only view
 ```
 
-Items may be stored in a flat structure (`items/T-001/item.md`) or hierarchical
-structure (`items/E-001/T-001/item.md`) based on parent relationships. Both
-structures are supported. Use `workflow migrate` to convert flat to hierarchical.
-The hierarchical structure improves navigation for large projects while maintaining
-backward compatibility.
+Items live flat (`items/T-001/item.md`) or hierarchical
+(`items/E-001/T-001/item.md`); both are supported and `workflow migrate`
+converts between them (see workflow-cli). Only `item.md` and optional
+`outputs/` belong inside an item directory — no per-attempt directories or
+staged project copies — and never delete failed or cancelled history. Project
+decisions belong in PRD/Architecture; item decisions belong on the item.
 
-Only `item.md` and optional `outputs/` belong inside an item directory. No
-per-attempt directories or staged project copies. Never delete failed or
-cancelled history. Project decisions belong in PRD/Architecture; item decisions
-belong on the item.
+PRD.md carries product truth (purpose, users, goals, non-goals, requirements,
+product-level acceptance); Architecture.md carries system truth (shape,
+components, data and state, interfaces, testing, durable technical decisions).
+The orchestrator is the default writer; an item may explicitly own a document
+and then its owner writes it — a worker may change PRD/Architecture only when
+those documents are owned. Epic approval is made against the current PRD;
+document updates do not change item scope and never invalidate approval or
+verification by themselves. Documents stay editable after completion, and
+updating them is not reopening history.
 
-### Project documents
-
-PRD.md and Architecture.md are project documents, not item records: PRD carries
-product truth (purpose, users, goals, non-goals, requirements, product-level
-acceptance); Architecture carries system truth (shape, components, data and
-state, interfaces, testing, durable technical decisions). The orchestrator is
-the default writer; an item may explicitly own a document and then its owner
-writes it. Fill PRD.md before presenting the first epic for approval, refresh it
-at goal or non-goal changes and at each later epic's framing; fill
-Architecture.md when recording an epic Design, referencing Architecture rather
-than duplicating it. When a decision changes project-level facts, reconcile the
-documents; at epic close, sweep item records for durable facts left behind —
-documents stay editable after completion, and updating them is not reopening
-history. Epic approval is made against the current PRD; document updates do not
-change item scope and never invalidate approval or verification by themselves.
+## Kinds, statuses, phases and ownership
 
 Kinds: `epic` (no parent), `task` (epic parent, or standalone with a reason),
 `subtask` (task parent). Epics are containers without `owns`; children own
@@ -75,44 +63,40 @@ aliases and component ancestry overlap, not globs, realpath or existence.
 One deliverable has one writer; parallel work needs satisfied dependencies
 and no active ownership overlap.
 
-Statuses: `draft`, `todo`, `in-progress`, `review`, `done`, `cancelled`.
-The `review` status indicates a task has completed internal verification but requires additional review before closure (e.g., external PR review, orchestrator review, or additional iteration). Items in `review` remain open and visible in status output. Use progress notes to document what's pending.
-Phases: `plan`, `explore`, `design`, `implement`, `verify`. Phase does not imply
-status. These guide work, not a mandatory state machine. The CLI enforces
+Statuses: `draft`, `todo`, `in-progress`, `review`, `done`, `cancelled`. The
+`review` status indicates a task has completed internal verification but
+requires additional review before closure (e.g., external PR review,
+orchestrator review, or additional iteration). Items in `review` remain open
+and visible in status output; use progress notes to document what is pending.
+Phases: `plan`, `explore`, `design`, `implement`, `verify`. Phase does not
+imply status. These guide work, not a mandatory state machine. The CLI enforces
 structural integrity and current-verification completion; missing Plan/Design
 produces advisory warnings rather than new process gates.
 
 ## Scope, discovery and approval
 
-Frame outcome, scope in/out, acceptance criteria, dependencies and owned paths.
-For an epic include discovery and integration.
+Frame outcome, scope in/out, acceptance criteria, dependencies and owned paths;
+an epic also includes discovery and integration. Approval covers only kind,
+parent, title, outcome, scope, acceptance and dependencies, and `approve`
+prints those exact values with their scope hash. Status, phase, priority, owns,
+Plan/Design, decisions, artifacts and progress do not invalidate approval;
+changed scope does. Approval freshness and verification freshness are
+separate. Do not ask again for routine steps.
 
-Multi-phase or multi-goal projects are not one flat child chain. Structure them
-as one epic per phase (epics are standalone containers; `depends_on` orders
-phases) with the roadmap recorded in PRD.md, or as milestone groups named in the
-epic Design scope map.
-
-Present actual records, not a
-summary: `workflow review <epic>` gives the exact epic/descendant packet,
-including plans/designs and owned paths. For one standalone item show
-`workflow brief <id> --for orchestrator --json` to preserve exact lists/strings.
-Ask the user to confirm that packet before `workflow approve`. Answers to
-questions, resolutions of the orchestrator's own doubts and silence are not
-approval. If user input changes the presented packet, re-present the updated
-packet in a separate turn and obtain an explicit confirmation of that packet —
-a literal yes/approve addressed to its current content — before
-`workflow approve`. The epic confirmation ask and the children confirmation ask
-are separate turns; never record any approval in the same conversational turn in
-which you received answers or scope changes. If the user raises new questions or
-objections after answering, pause affected work until they are resolved; 'no
-objection' and 'no further questions' are never approval.
-
-Approval is staged: approve the epic/discovery scope first; gather required
-independent evidence before framing implementation children (or justify no
-exploration); then present and approve the exact new child records. Independent
-means a separate explorer run, not a mandatory extra item. Discovery may be
-recorded on the epic; create a discovery task only for its own useful,
-independently acceptable outcome.
+Present actual records, not a summary — `workflow review <epic>` for the exact
+epic/descendant packet, `workflow brief <id> --for orchestrator --json` for one
+standalone item — and ask the user to confirm that packet before
+`workflow approve`. Approval is staged: epic/discovery scope first, then the
+exact new child records after required evidence; the epic confirmation ask and
+the children confirmation ask are separate turns. Answers to questions,
+resolutions of the coordinator's own doubts, silence, 'no objection' and 'no
+further questions' are never approval. If user input changes a presented
+packet, re-present the updated packet in a separate turn and obtain a literal
+yes/approve addressed to its current content before `workflow approve`; never
+record any approval in the same conversational turn in which you received
+answers or scope changes. If the user raises new questions or objections after
+answering, pause affected work until they are resolved. Required independent
+evidence means a separate explorer run, not a mandatory extra item.
 
 Explorer dispatch is the only dispatch allowed without current approval:
 pre-approval discovery is legitimate when it informs the scope being approved,
@@ -120,156 +104,87 @@ and the Plan should state which mode is used. Implementation work always
 requires current approval; never frame implementation children before approving
 the epic.
 
-Epic **Design owns the one canonical scope map**: dimensions, children,
-acceptance coverage, dependencies, owned paths, integration contract and open
-unknowns. Child designs reference the parent instead of copying the map.
-Include a coverage matrix and a decomposition rationale that, for each child,
-names the finer split considered (if any) and why the chosen boundary beats it —
-not only why subtasks were or were not useful, and answers the boundedness
-test: does the child bundle two or more independently acceptable outcomes?
-If so, split it — at epic level into sibling tasks, inside a task into
-subtasks — or record the explicit broad-item reason. A task kept whole while
-its outcomes are independently acceptable is the exception; subtasks are the
-default decomposition under a task. 'No finer split exists' or 'the finer
-split fails one-writer/one-outcome' are valid answers; silence or a bare
-'no need' is not.
-The epic's `## Design` section is the durable map; record it before children are
-approved. An `outputs/` artifact is supporting evidence, not the durable map.
-Later evidence may revise decomposition; review/reapprove only affected changed
-scopes, not an unchanged epic.
+After approval, classify changes with `workflow change`: material changes
+(outcome changes, scope removal, dependency removal, owned path changes)
+require full re-approval with `workflow approve`; non-material additions
+(scope, dependency, acceptance additions) take `workflow approve <id> --delta`.
 
-A task or subtask Design is a solution design, not a map reference plus bullet
-stubs: it states the drivers/characteristics, the compared options, the chosen
-approach and its limits. The method is code-architecture (task solution
-design route).
+## Design
 
-Approval covers only kind, parent, title, outcome, scope, acceptance and
-dependencies. `approve` prints those exact values with their scope hash.
-Status, phase, priority, owns, Plan/Design, decisions, artifacts and progress
-do not invalidate approval; changed scope does. Do not ask again for routine
-steps. Approval freshness and verification freshness are separate.
+The epic `## Design` section is the durable, canonical scope map — candidate
+children, acceptance coverage, dependencies, owned paths, integration contract
+and open unknowns, with the decomposition rationale and boundedness test from
+decompose-work. Record it before children are approved; child designs
+reference the parent instead of copying the map, and an `outputs/` artifact is
+supporting evidence, not the durable map. Later evidence may revise the map:
+review and re-approve only the affected changed scopes, never an unchanged
+epic.
 
-**Change classification:** After approval, use `workflow change <id>` to inspect
-what changed. Changes are classified as:
-- **Material** (require full re-approval): outcome changes, scope removal,
-  dependency removal, owned path changes. Use `workflow approve <id>` for full
-  re-approval.
-- **Non-material** (delta approval sufficient): scope additions, dependency
-  additions, acceptance additions. Use `workflow approve <id> --delta` for
-  faster approval of additive changes only.
-
-The system tracks the last approved scope automatically. Delta approval validates
-that no material changes exist before approving.
-
-Tasks and subtasks have a second, separate gate. **A design worker authors the
-solution design; the orchestrator does not.** The sequence is: dispatch a design
-worker (its own instance), have it author the Design as an artifact from the full
-item and the exploration evidence, record that Design with `workflow design <id>
---file ...` (no `--approve` yet), verify it with an independent design verifier,
-then present the verified design to the user. Implementation begins only after
-the user approves the presented design; a task Design states its subtask
-decomposition — the subtask map, or the explicit reason no finer split exists.
-Record that approval with `workflow design <id> --approve` in the same mutation
-that writes the approved Design; the CLI refuses the *implementation* worker
-dispatch without it ('design not approved' / 'stale design approval'). The
-design worker is dispatched by reference and reads the whole record with
-`workflow show <id>` plus its `outputs/`, because the gated `brief --for worker`
-packet is reserved for implementation dispatch. Scope approval survives Design
-changes; design approval does not — a material Design change stales it, so
-re-present the design and re-approve before dispatch. The design worker and the
-implementation worker are separate independent worker instances; an instance
-that authored a Design never implements it, so authoring and building stay
-independently reviewable.
+A task or subtask Design is a solution design authored by a **design worker**,
+never by the orchestrator: drivers/characteristics, compared options with
+trade-offs, the chosen approach and its limits, and the subtask decomposition
+— the subtask map, or the explicit reason no finer split exists. The
+orchestrator records it with `workflow design <id> --file ...` (no
+`--approve`), an independent design verifier checks it before the user sees
+it, and implementation dispatch requires the user's approval of that design,
+recorded with `workflow design <id> --approve` in the same mutation that writes
+it. Scope approval survives Design changes; design approval does not — a
+material Design change stales it, so re-present the design and re-approve
+before dispatch. The design worker, the design verifier and the
+implementation worker are separate instances; an instance that authored a
+Design never implements it.
 
 ## Work sequence
 
 Apply the same approach at each level, scaled to the outcome:
 
-1. **Plan before exploration (orchestrator):** question, dimensions, sources,
-   stop conditions and acceptance mapping. Record with `workflow plan`.
-2. **Explore:** give each explorer one bounded question and
-   `workflow brief <id> --for explorer`. Evidence goes under the assigned
-   `.workflow/items/<ID>/outputs/` path. Sequence dependent questions.
-3. **Design from evidence (design worker):** dispatch a design worker — its own
-   instance, separate from any later implementation worker. It reads the full
-   item (`workflow show <id>`) and the exploration evidence, chooses the method
-   skill for the task type (default code-architecture route 2), and authors the
-   solution design: artifact outline, drivers, compared options with trade-offs,
-   the chosen approach and its limits, implementation considerations, checks and
-   open risks, and the subtask decomposition. It returns the design as an
-   artifact under `outputs/` plus the receipt; it does not approve its own design.
-   When evidence is insufficient it returns `needs-decision` requesting bounded
-   exploration; when the task is too broad it returns `needs-decision` with a
-   proposed split — the orchestrator, not the worker, frames any new items. The
-   orchestrator records the authored design with `workflow design <id> --file ...`
-   (no `--approve`) and dispatches an independent **design verifier**
-   (`workflow brief <id> --for verifier`) before presenting it to the user; only
-   after a passing design verification does the orchestrator present the design
-   for the user's approval, then re-record it with `--approve`. A task with
-   current scope approval but no design approval is not yet `ready` — it appears
-   in `status` waiting as 'design not approved'; that is precisely the work to
-   dispatch a design worker for, not a block.
-4. **Implement:** use `phase=implement`; dispatch an implementation worker — a
-   different instance from the design worker — only with current scope and design
-   approval, Plan/Design, required evidence (or justified no-exploration), done
-   dependencies and uncontested ownership. `ready`
-   checks computed readiness and reports overlaps; it does not check every
-   procedural condition here.
-5. **Verify:** freeze named paths, use `phase=verify`, and assign an independent
-   verifier `workflow brief <id> --for verifier`. The verifier derives
-   expectations before seeing producer conclusions, checks the actual target
-   against acceptance/design, and reports limits.
+1. **Plan before exploration:** question, dimensions, sources, stop conditions
+   and acceptance mapping. Record with `workflow plan`.
+2. **Explore:** one bounded question per explorer (`workflow brief <id> --for
+   explorer`), sequencing dependent questions; evidence under the assigned
+   `.workflow/items/<ID>/outputs/` path.
+3. **Design from evidence:** a design worker authors it (see Design).
+   Insufficient evidence returns `needs-decision` requesting bounded
+   exploration; an over-broad task returns `needs-decision` with a proposed
+   split — the orchestrator, not the worker, frames any new items.
+4. **Implement:** `phase=implement`; dispatch an implementation worker only
+   with current scope and design approval, Plan/Design, required evidence (or
+   justified no-exploration), done dependencies and uncontested ownership.
+5. **Verify:** freeze named paths, use `phase=verify`, and assign an
+   independent verifier (`workflow brief <id> --for verifier`) that derives
+   expectations before producer conclusions and reports limits.
 6. **Close:** record the verifier receipt with `workflow result <id> --role
    verifier ...`, then `workflow close <id>` in a separate call.
 
-Small work needs one item, short exact scope approval, a one-line Plan and
-a one-line Design authored by a design worker and recorded with its design
+Small work needs one item, short exact scope approval, a one-line Plan and a
+one-line Design authored by a design worker and recorded with its design
 approval, and an explicit reason if no exploration is needed. Design and
 implementation still use separate worker instances and it normally uses an
 independent verifier; collapsing them (one instance designing and implementing
-its own work) requires the same explicit recorded reason as a `close --force`
-exception, never silent triviality. A deliberate
-`close --force --reason "..."` records an unverified exception, never
-verifier success; triviality is not an implicit exemption.
+its own work) requires the same explicit recorded reason as a deliberate
+`close --force --reason "..."` exception, which records unverified closure,
+never verifier success; triviality is not an implicit exemption.
 
-Split independently acceptable deliverables, not steps. A **deliverable** can
-be accepted or rejected on its own while siblings remain unfinished; a **step**
-only has value inside the whole. Pipeline nodes (fetch→select→verify→summarize→
-compose) are steps of one deliverable; an e-mail sender, an on-demand CLI entry
-point and a persisted history store are each deliverables. Prefer the smallest
-child that still has one independently acceptable outcome: a child is too coarse
-when its acceptance cannot be verified in one focused worker-and-verifier pass,
-or when it bundles two or more separately acceptable outcomes under one writer.
-In that case split by deliverable — subtasks under the task, sibling tasks
-at epic level — or record the explicit broad-item reason. Bundling needs the
-same stated justification as splitting. Use explorers for missing evidence.
-Decompose tasks into subtasks for parts with their own outcome and path — by
-default; a task without subtasks carries the explicit no-split reason in its
-Design.
-About three independent questions, 2,000 words or ten searches signal a sizing
-review, not a gate. A broad item needs an explicit reason; preserve one writer
-for one voice.
+Split independently acceptable deliverables, not steps, and prefer the
+smallest child that still has one independently acceptable outcome; subtasks
+are the default decomposition under a task, and a task kept whole or a broad
+item carries the explicit reason. Multi-phase or multi-goal projects are not
+one flat child chain: one epic per phase ordered by `depends_on` with the
+roadmap in PRD.md, or milestone groups named in the epic Design scope map. The
+deliverable/step test, split boundaries and sizing review signals are in
+decompose-work; preserve one writer for one voice.
 
 ## Delegation and receipts
 
-Delegate by reference: item ID, bounded question/outcome, owned paths, upstream
-artifact references and expected return. The role runs its own brief so the
-packet stays out of the coordinator's context. Always pass `--for`:
-
-| Role | Packet |
-| --- | --- |
-| `explorer` | Plan and repository-relative evidence target |
-| `design worker` | Full item (`workflow show <id>`) and its `outputs/`, not the gated worker brief; authors the Design as an artifact |
-| `worker` | Implementation dispatch: Plan, Design, parent Design, upstream artifacts, last result |
-| `verifier` | Acceptance, Design, decisions and artifacts; no producer receipt/progress |
-
-The default is worker, not verifier. Blinding is field-based, not censorship
-of approved narrative. Route artifacts through the orchestrator; workers do
-not coordinate directly. Only the orchestrator mutates item records, so a
-design worker authors its design into `outputs/` and the orchestrator records
-that artifact — the design worker, the design verifier and the implementation
-worker are separate independent instances. A worker
-may change project PRD/Architecture only when those documents are owned.
+Delegate by reference — item ID, bounded question/outcome, owned paths,
+upstream artifact references and expected return — naming the role file and
+always passing `workflow brief <id> --for <role>`, so the full packet stays in
+that role's context, not the coordinator's. Explorers, workers and verifiers
+read sources and artifacts in their own context; the orchestrator's read views
+are bounded (`status`, `ready`, `brief`, `review`). Route artifacts through the
+orchestrator; workers do not coordinate directly. Only the orchestrator mutates
+item records: a design worker authors its design into `outputs/` and the
+orchestrator records that artifact.
 
 Every delegated role returns exactly this receipt; detail stays in artifacts:
 
@@ -281,9 +196,9 @@ decision: the question, or none
 next: one bounded action
 ```
 
-`result` defaults to worker; always mark verifier receipts `--role verifier`.
-A producer's `done` is not item completion. Resolve real decisions with the
-user and pause only affected work.
+`workflow result` defaults to `--role worker`; always mark verifier receipts
+`--role verifier`. A producer's `done` is not item completion. Resolve real
+decisions with the user and pause only affected work.
 
 ## Verification and historical completion
 
@@ -292,11 +207,11 @@ verifier `done` may carry recorded external-dependency limits plus a named
 follow-up only when the frozen outcome or acceptance explicitly approves the
 alternative branch; otherwise the verifier returns `blocked` and the force
 decision stays with the orchestrator. `close --force` is reserved for targets
-that could not be verified at all. For open items, tracked scope, Plan/Design/Decisions, owns or artifact-reference
-changes, producer receipts and non-done verifier receipts invalidate that
-proof. All supported routes entering `done` require current proof; only an
-explicit forced close records an exception. Force does not bypass structure
-or history protection.
+that could not be verified at all. For open items, tracked scope,
+Plan/Design/Decisions, owns or artifact-reference changes, producer receipts
+and non-done verifier receipts invalidate that proof. All supported routes
+entering `done` require current proof; only an explicit forced close records an
+exception. Force does not bypass structure or history protection.
 
 Done items remain historical. Material scope/Plan/Design/Decisions/ownership/
 artifact changes, new producer work, unsuccessful verification or other new
@@ -307,32 +222,9 @@ Same-path artifact content changes are not detected by hashes: freeze paths
 by convention, report changes and reverify before closing; after completion
 use a follow-up and preserve the historical target.
 
-Resume with `workflow status` and one role-specific brief; use `ready` to
-choose work. Defaults are bounded; `status --all` is exhaustive, including
-terminal groups. Do not reconstruct session memory from reports. Ask the
-user only about scope or a real decision.
-
-## Migration from flat to hierarchical structure
-
-Existing projects with flat structure (`items/T-001/item.md`) can migrate to
-hierarchical structure (`items/E-001/T-001/item.md`) for better navigation:
-
-```bash
-# Preview migration (dry run)
-workflow migrate --dry-run
-
-# Execute migration (creates backup)
-workflow migrate
-
-# Rollback if needed
-rm -rf .workflow/items
-mv .workflow/items.backup .workflow/items
-```
-
-Migration preserves all item data, relationships, and history. It handles
-malformed items gracefully (skips them). Both flat and hierarchical structures
-are fully supported, so migration is optional but recommended for projects
-with many items.
+Resume with `workflow status` and one role-specific brief, choosing work with
+`ready` (see fresh-session-handoff). Do not reconstruct session memory from
+reports. Ask the user only about scope or a real decision.
 
 <!-- END KIT WORKFLOW RULES -->
 

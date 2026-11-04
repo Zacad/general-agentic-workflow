@@ -32,7 +32,7 @@ final class Application extends \Symfony\Component\Console\Application
 {
     public function __construct()
     {
-        parent::__construct('workflow', '5.3.0');
+        parent::__construct('workflow', '5.4.0');
 
         $this->addCommands([
             new InitCommand(),

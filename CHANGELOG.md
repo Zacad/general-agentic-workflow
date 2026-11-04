@@ -3,6 +3,24 @@
 User-facing changes to the workflow kit. Versions match the CLI
 (`workflow --version`).
 
+## 5.4.0
+
+The kit operating contract slimmed to cross-role invariants, with role
+procedure moved to its canonical home.
+
+- **Slimmed kit operating contract.** The marker-delimited block in `AGENTS.md`
+  keeps only cross-role invariants (records, vocabulary, approval and design
+  gates, the receipt contract, verification and follow-up policy) and moves
+  role-specific procedure to its single canonical home: dispatch mechanics and
+  the role→packet table to `.agents/roles/orchestrator.md`, decomposition and
+  sizing detail to the `decompose-work` skill, lifecycle mechanics to
+  `work-task`, and the migration how-to plus complete change-classification
+  lists to the `workflow-cli` skill. `AGENTS.md` now also states the convention
+  for harnesses without registered workflow agents: the coordinator reads
+  `.agents/roles/orchestrator.md`, and that role file requires every delegation
+  to name the delegate's role file and read it in full. Refresh existing
+  installs with `workflow install <target> --force`.
+
 ## 5.3.0
 
 Solution design moves from the orchestrator to a dedicated **design worker**,

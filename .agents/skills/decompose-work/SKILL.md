@@ -34,10 +34,13 @@ policy; use this procedure to choose boundaries, not to add process gates.
    subtasks: each independently acceptable part under a task becomes a subtask
    with its own scope/path; keep one deliverable under the task itself only
    when no finer split exists or the pieces would write the same paths, and
-   record that reason.
+   record that reason. A multi-phase or multi-goal project is not one flat
+   child chain: frame one epic per phase ordered by `depends_on` with the
+   roadmap recorded in PRD.md, or milestone groups named in the epic Design
+   scope map.
 5. Record, per child, why these boundaries beat the finer alternative
    considered, why subtasks were/weren't useful, and explicit triggers for
-   deferred work. Unexplored is not deferred. Apply AGENTS' sizing signals as
+   deferred work. Unexplored is not deferred. Apply the Sizing cues below as
    judgment, not hard thresholds.
 6. Present exact new child records after evidence. Later evidence may revise
    the map; identify affected scope changes for review without reapproving
