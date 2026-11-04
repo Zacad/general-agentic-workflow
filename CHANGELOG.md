@@ -3,6 +3,31 @@
 User-facing changes to the workflow kit. Versions match the CLI
 (`workflow --version`).
 
+## 5.5.0
+
+A recorded verifier `done` now surfaces the review-vs-close decision at the
+exact moment it is made. No automatic status transitions were added.
+
+- **`result` prints a decision reminder after a verifier receipt.**
+  `workflow result ID --role verifier --status done` now ends the text-mode
+  success path with `Verifier proof recorded — it does not close the item:
+  workflow close ID, or hold for review with workflow set ID status=review and
+  workflow log ID "what is pending".` The reminder fires only for that role and
+  status: worker, explorer and orchestrator receipts, verifier
+  `blocked`/`needs-decision`/`failed` and all error paths stay silent, and
+  `--json` stdout is unchanged (a new test pins the receipt object shape).
+  `review` remains an opt-in status — statuses still guide work rather than
+  form a state machine.
+- **Guidance names the decision point.** `work-task` step 5 is now "Review or
+  close": record the verifier receipt, then `workflow set <id> status=review`
+  plus a `workflow log` note when further review is pending, or `workflow close`
+  when ready; review feedback returns the item to `in-progress` for rework and
+  re-verification, and the Output covers a `review` hold. `orchestrator.md` now
+  states that a verifier `done` is proof, not closure. `AGENTS.md` is
+  unchanged: its `review` vocabulary already carries the invariant.
+- **Installed projects** refresh `.agents/` and the kit rules with
+  `workflow install <target> --force`.
+
 ## 5.4.1
 
 Fixes `workflow migrate` for items that have subtasks, and makes the kit test
