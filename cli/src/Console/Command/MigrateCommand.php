@@ -12,8 +12,13 @@ use Workflow\Domain\WorkflowException;
 
 final class MigrateCommand extends BaseCommand
 {
-    public function __construct()
+    /** @var \Closure(string, string): bool */
+    private readonly \Closure $rename;
+
+    /** @param null|callable(string, string): bool $rename */
+    public function __construct(?callable $rename = null)
     {
+        $this->rename = $rename !== null ? \Closure::fromCallable($rename) : static fn (string $from, string $to): bool => @rename($from, $to);
         parent::__construct('migrate');
     }
 
@@ -222,79 +227,82 @@ final class MigrateCommand extends BaseCommand
         $backupDir = $itemsDir.'.backup';
 
         // Create backup
-        if (is_dir($backupDir)) {
+        if (file_exists($backupDir) || is_link($backupDir)) {
             throw new WorkflowException('Backup directory already exists: '.$backupDir);
         }
 
-        if (!rename($itemsDir, $backupDir)) {
+        if (!(($this->rename)($itemsDir, $backupDir))) {
             throw new WorkflowException('Cannot create backup.');
         }
 
-        if (!mkdir($itemsDir, 0777, true)) {
-            // Try to restore backup
-            rename($backupDir, $itemsDir);
-            throw new WorkflowException('Cannot recreate items directory.');
-        }
-
-        // Move items according to plan
         $moved = [];
-        foreach ($plan as $item) {
-            $from = $backupDir.'/'.$item['from'];
-            $to = $itemsDir.'/'.$item['to'];
-
-            $toDir = dirname($to);
-            if (!is_dir($toDir) && !mkdir($toDir, 0777, true)) {
-                // Rollback
-                $this->rollbackMigration($itemsDir, $backupDir, $moved);
-                throw new WorkflowException('Cannot create directory: '.$toDir);
+        $created = [];
+        try {
+            if (!@mkdir($itemsDir, 0777)) {
+                throw new WorkflowException('Cannot recreate items directory.');
             }
+            $created[] = $itemsDir;
 
-            if (!rename($from, $to)) {
-                $this->rollbackMigration($itemsDir, $backupDir, $moved);
-                throw new WorkflowException('Cannot move item: '.$item['id']);
-            }
+            // Sort execution only: keep the displayed plan and its construction unchanged.
+            usort($plan, static function (array $a, array $b): int {
+                return substr_count($a['to'], '/') <=> substr_count($b['to'], '/')
+                    ?: strcmp($a['to'], $b['to'])
+                    ?: strcmp($a['from'], $b['from']);
+            });
 
-            $moved[] = $item;
-        }
+            foreach ($plan as $item) {
+                $from = $backupDir.'/'.$item['from'];
+                $to = $itemsDir.'/'.$item['to'];
+                $this->createParents($itemsDir, dirname($to), $created);
 
-        // Move remaining items (those without parents or already in place)
-        foreach (glob($backupDir.'/*', GLOB_ONLYDIR) ?: [] as $remaining) {
-            $basename = basename($remaining);
-            $to = $itemsDir.'/'.$basename;
-
-            // Check if this is an item directory (has item.md)
-            $itemFile = $remaining.'/item.md';
-            if (!is_file($itemFile)) {
-                // Not an item directory, skip (might be a parent created during migration)
-                continue;
-            }
-
-            if (!is_dir($to)) {
-                // Target doesn't exist, move the whole directory
-                if (!rename($remaining, $to)) {
-                    $this->rollbackMigration($itemsDir, $backupDir, $moved);
-                    throw new WorkflowException('Cannot move remaining item: '.$basename);
+                if (file_exists($to) || is_link($to) || !(($this->rename)($from, $to))) {
+                    throw new WorkflowException('Cannot move item: '.$item['id']);
                 }
-            } else {
-                // Target exists (created during migration for child items).
-                // Move every remaining entry — item.md and outputs/ alike —
-                // so the parent's own artifact directory is not orphaned.
-                foreach (scandir($remaining) ?: [] as $entry) {
-                    if ($entry === '.' || $entry === '..') {
-                        continue;
+
+                $moved[] = ['from' => $from, 'to' => $to];
+            }
+
+            // Move remaining items (those without parents or already in place).
+            foreach (glob($backupDir.'/*', GLOB_ONLYDIR) ?: [] as $remaining) {
+                $basename = basename($remaining);
+                $to = $itemsDir.'/'.$basename;
+
+                if (!is_file($remaining.'/item.md')) {
+                    continue;
+                }
+
+                if (!file_exists($to) && !is_link($to)) {
+                    if (!(($this->rename)($remaining, $to))) {
+                        throw new WorkflowException('Cannot move remaining item: '.$basename);
                     }
-                    $entrySource = $remaining.'/'.$entry;
-                    $entryTarget = $to.'/'.$entry;
-                    if (is_file($entryTarget) || is_dir($entryTarget)) {
-                        // Preserve anything the migration already placed here.
-                        continue;
+                    $moved[] = ['from' => $remaining, 'to' => $to];
+                } else {
+                    if (!is_dir($to)) {
+                        throw new WorkflowException('Cannot move remaining item: '.$basename);
                     }
-                    if (!rename($entrySource, $entryTarget)) {
-                        $this->rollbackMigration($itemsDir, $backupDir, $moved);
-                        throw new WorkflowException('Cannot move entry: '.$basename.'/'.$entry);
+                    // Move nonconflicting entries, including item.md and outputs/.
+                    foreach (scandir($remaining) ?: [] as $entry) {
+                        if ($entry === '.' || $entry === '..') {
+                            continue;
+                        }
+                        $entrySource = $remaining.'/'.$entry;
+                        $entryTarget = $to.'/'.$entry;
+                        if (file_exists($entryTarget) || is_link($entryTarget)) {
+                            continue;
+                        }
+                        if (!(($this->rename)($entrySource, $entryTarget))) {
+                            throw new WorkflowException('Cannot move entry: '.$basename.'/'.$entry);
+                        }
+                        $moved[] = ['from' => $entrySource, 'to' => $entryTarget];
                     }
                 }
             }
+        } catch (WorkflowException $exception) {
+            $failure = $this->rollbackMigration($itemsDir, $backupDir, $moved, $created);
+            if ($failure !== null) {
+                throw new WorkflowException($exception->getMessage().'; recovery failed: '.$failure);
+            }
+            throw $exception;
         }
 
         // Clean up backup if successful
@@ -302,47 +310,47 @@ final class MigrateCommand extends BaseCommand
     }
 
     /**
-     * Rollback a failed migration.
+     * Create and track only the missing target ancestors.
      *
-     * @param list<array{from: string, to: string, id: string}> $moved
+     * @param list<string> $created
      */
-    private function rollbackMigration(string $itemsDir, string $backupDir, array $moved): void
+    private function createParents(string $itemsDir, string $directory, array &$created): void
     {
-        // Move items back to backup
-        foreach ($moved as $item) {
-            $from = $itemsDir.'/'.$item['to'];
-            $to = $backupDir.'/'.$item['from'];
-            if (is_dir($from)) {
-                rename($from, $to);
+        $relative = ltrim(substr($directory, strlen($itemsDir)), '/');
+        $path = $itemsDir;
+        foreach ($relative === '' ? [] : explode('/', $relative) as $part) {
+            $path .= '/'.$part;
+            if (!is_dir($path)) {
+                if (!@mkdir($path, 0777)) {
+                    throw new WorkflowException('Cannot create directory: '.$path);
+                }
+                $created[] = $path;
             }
         }
-
-        // Remove new items directory
-        $this->removeDirectory($itemsDir);
-
-        // Restore backup
-        rename($backupDir, $itemsDir);
     }
 
-    private function removeDirectory(string $dir): void
+    /**
+     * Undo successful moves in reverse; never recursively delete the generated tree.
+     *
+     * @param list<array{from: string, to: string}> $moved
+     * @param list<string> $created
+     */
+    private function rollbackMigration(string $itemsDir, string $backupDir, array $moved, array $created): ?string
     {
-        if (!is_dir($dir)) {
-            return;
-        }
-
-        foreach (scandir($dir) ?: [] as $file) {
-            if ($file === '.' || $file === '..') {
-                continue;
-            }
-
-            $path = $dir.'/'.$file;
-            if (is_dir($path)) {
-                $this->removeDirectory($path);
-            } else {
-                unlink($path);
+        foreach (array_reverse($moved) as $move) {
+            if (file_exists($move['from']) || is_link($move['from']) || !(($this->rename)($move['to'], $move['from']))) {
+                return 'cannot undo move: '.$move['to'].' → '.$move['from'].'; both trees retained';
             }
         }
-
-        rmdir($dir);
+        // Only remove directories we created, and only when empty; never delete data.
+        foreach (array_reverse($created) as $directory) {
+            if (!@rmdir($directory)) {
+                return 'cannot remove generated directory: '.$directory.'; both trees retained';
+            }
+        }
+        if (!(($this->rename)($backupDir, $itemsDir))) {
+            return 'cannot restore backup: '.$backupDir;
+        }
+        return null;
     }
 }
