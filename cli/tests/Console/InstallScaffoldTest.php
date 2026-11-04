@@ -249,6 +249,62 @@ echo \''.$payload.'\'
         self::assertFileDoesNotExist($target.'/.workflow/items/E-999');
     }
 
+    private function managedDoc(string $rules, string $preamble = '', string $postamble = ''): string
+    {
+        $begin = $preamble === '' ? '' : $preamble."\n\n";
+        $end = $postamble === '' ? '' : "\n\n".$postamble."\n";
+
+        return $begin."<!-- BEGIN KIT WORKFLOW RULES (managed) -->\n".$rules."\n<!-- END KIT WORKFLOW RULES -->\n".$end;
+    }
+
+    public function testInstallForceRefreshesKitManagedAgentsSectionAndPreservesHostText(): void
+    {
+        $target = $this->root.'/host-marked';
+        mkdir($target, 0777, true);
+        // Kit ships a newer managed rule block.
+        $this->put($this->kit.'/AGENTS.md', $this->managedDoc('rules v2'));
+        // Host installed an older copy and added text on both sides of the block.
+        $this->put($target.'/AGENTS.md', $this->managedDoc('rules v1', '# My Project', "## Host notes\nkeep me"));
+
+        [$exit, $output] = $this->install($target, true);
+        self::assertSame(0, $exit, $output);
+        $agents = (string) file_get_contents($target.'/AGENTS.md');
+        self::assertStringContainsString('rules v2', $agents, 'managed block must refresh');
+        self::assertStringNotContainsString('rules v1', $agents, 'stale managed block must be replaced');
+        self::assertStringContainsString('# My Project', $agents, 'host preamble must survive');
+        self::assertStringContainsString('keep me', $agents, 'host postamble must survive');
+        self::assertStringContainsString('Refreshed the marker-delimited AGENTS.md section', $output);
+    }
+
+    public function testInstallWithoutForceKeepsMarkedAgentsSectionForManualMerge(): void
+    {
+        $target = $this->root.'/host-marked-noforce';
+        mkdir($target, 0777, true);
+        $this->put($this->kit.'/AGENTS.md', $this->managedDoc('rules v2'));
+        $before = $this->managedDoc('rules v1', '# My Project', '## Host notes');
+        $this->put($target.'/AGENTS.md', $before);
+
+        [$exit, $output] = $this->install($target, false);
+        self::assertSame(0, $exit, $output);
+        self::assertSame($before, (string) file_get_contents($target.'/AGENTS.md'), 'default install must not touch AGENTS.md');
+        self::assertStringContainsString('Manually merge the kit AGENTS.md', $output);
+        self::assertStringNotContainsString('Refreshed the marker-delimited', $output);
+    }
+
+    public function testInstallForcePreservesUnmarkedHostAgentsByteForByte(): void
+    {
+        $target = $this->root.'/host-unmarked';
+        mkdir($target, 0777, true);
+        $this->put($this->kit.'/AGENTS.md', $this->managedDoc('rules v2'));
+        $hostOnly = "# Fully host-authored\n\nno markers here\n";
+        $this->put($target.'/AGENTS.md', $hostOnly);
+
+        [$exit, $output] = $this->install($target, true);
+        self::assertSame(0, $exit, $output);
+        self::assertSame($hostOnly, (string) file_get_contents($target.'/AGENTS.md'), 'marker-free host file is never rewritten');
+        self::assertStringContainsString('Manually merge the kit AGENTS.md', $output);
+    }
+
     public static function containedTargets(): array
     {
         return [

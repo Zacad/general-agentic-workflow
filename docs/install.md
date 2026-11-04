@@ -20,10 +20,18 @@ From a bootstrapped kit:
 /path/to/kit/cli/bin/workflow install /path/to/target
 ```
 
-Default copying is add-only. Existing root `AGENTS.md`, `README.md` and `LICENSE`
-are preserved **even with `--force`**. Existing workflow documents, item history,
-outputs, host configuration and gitignore files are preserved. Source project
-records are never imported; a safe derived board may regenerate.
+Default copying is add-only. Existing root `README.md` and `LICENSE` are
+preserved **even with `--force`**, as are workflow documents, item history,
+outputs, host configuration and gitignore files. Source project records are
+never imported; a safe derived board may regenerate.
+
+Root `AGENTS.md` is marker-delimited. `install --force` refreshes only the
+block between `<!-- BEGIN KIT WORKFLOW RULES ... -->` and
+`<!-- END KIT WORKFLOW RULES -->`; everything you write **outside** those
+markers — before the block or after it — is preserved untouched. An `AGENTS.md`
+without the markers (a hand-authored host contract) is never rewritten; the
+installer reports it for a reviewed manual merge instead. A fresh install copies
+the file whole, markers included.
 
 `--force` deliberately refreshes ordinary kit-relative files under `.agents/`,
 `docs/` and `cli/`. Review/back up external customizations first. It does not
@@ -31,12 +39,16 @@ merge content or delete target-only files. Source/destination symlinks and type
 collisions are held or rejected, not followed during copying. Source-equal,
 ancestor and descendant targets are rejected, including resolved aliases.
 
-Manually merge the canonical workflow rules from the kit's `AGENTS.md` into
-the preserved target root instructions. Keep host authority and stricter rules;
-resolve conflicts through review. Every installed role explicitly loads that
-root file, even when used separately. If it is absent, incomplete or conflicting,
-the role must surface the need for a reviewed manual merge, not assume the host
-rules were replaced. Do not dispatch workflow roles until this merge is reviewed.
+Put this project's own rules **outside** the kit markers — before the `BEGIN`
+line or below the `END` line — so `install --force` keeps them while refreshing
+the managed block. Keep host authority and stricter rules; where a project rule
+narrows a kit rule, the project rule governs. A marker-free host `AGENTS.md`
+(a hand-written contract) is never auto-merged: manually merge the canonical
+workflow rules from the kit's `AGENTS.md` into it and review conflicts. Every
+installed role explicitly loads that root file, even when used separately. If it
+is absent, incomplete or conflicting, the role must surface the need for a
+reviewed manual merge, not assume the host rules were replaced. Do not dispatch
+workflow roles until this merge is reviewed.
 
 ## Bootstrap the target
 
@@ -132,8 +144,31 @@ printf 'Smoke retained at %s\n' "$smoke"
 
 ## Refresh
 
-Review changed kit files and held paths, then copy additions or deliberately
-use `install --force` for reviewed kit-file refreshes. Merge root rules and
-harness settings manually, rerun `composer install --no-dev` if dependencies
-changed, then `validate`. Keep existing workflow history. There is no managed
-updater, automatic merger, deletion engine or source-history migration.
+Review the [CHANGELOG](../CHANGELOG.md) for what changed between your installed
+kit version and the new one. Then copy additions or deliberately use
+`install --force` for reviewed kit-file refreshes: it refreshes `.agents/`
+(roles and skills), `docs/` and `cli/`, and the **marker-delimited managed
+block** inside root `AGENTS.md`, while preserving everything outside those
+markers, your `README.md`/`LICENSE`, host harness settings and all `.workflow/`
+history. Rerun `composer install --no-dev` if dependencies changed, then
+`validate`. There is no version-stamped drift report, automatic content merger
+outside the managed block, deletion engine or source-history migration.
+
+### One-time: gaining the markers (upgrading a pre-5.3 install)
+
+An `AGENTS.md` installed before 5.3.0 has no kit markers, so the first
+`install --force` will not auto-refresh it — it reports the manual-merge
+guidance and leaves the file untouched. This is deliberate: your host rules may
+live anywhere in that file and the kit must not guess. Do this once to move onto
+clean updates:
+
+1. Read the current kit `AGENTS.md` and `CHANGELOG.md` and note what changed.
+2. Either merge the managed rules into your file and wrap them in the
+   `<!-- BEGIN KIT WORKFLOW RULES ... -->` / `<!-- END KIT WORKFLOW RULES -->`
+   markers (keeping your own rules outside them), **or** if your root file held
+   only kit content, replace it wholesale with the kit's marked `AGENTS.md`.
+3. Re-run `install --force`; it now reports the managed block as refreshed and
+   preserves anything outside the markers. Every later upgrade is automatic.
+
+After that, keep new project-specific rules strictly outside the markers so
+they survive each refresh.

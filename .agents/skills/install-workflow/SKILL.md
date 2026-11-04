@@ -14,12 +14,18 @@ canonical rules and exact scaffold/runtime contract.
 1. Inspect target root/nested instructions, harness configuration, `.agents/`
    and `.workflow/`. Propose per-path add, manual merge, keep or hold actions.
 2. Run the documented scaffold copy only after reviewing collisions. Default
-   is add-only; force is a deliberate ordinary-kit-file refresh, not a managed
-   updater. Review external customizations before using it. Never import source
-   workflow history or follow held links/type conflicts.
-3. Manually merge workflow rules into preserved host root `AGENTS.md`; review
+   is add-only; force is a deliberate kit-file refresh: it updates `.agents/`,
+   `docs/` and `cli/` and the marker-delimited managed block inside root
+   `AGENTS.md`, but is not a general managed updater. Review external
+   customizations before using it. Never import source workflow history or
+   follow held links/type conflicts.
+3. Root `AGENTS.md`: `install --force` refreshes only the block between the
+   `BEGIN/END KIT WORKFLOW RULES` markers; keep project rules outside them and
+   they survive updates. For a marker-free host `AGENTS.md` (a pre-5.3 install),
+   do a one-time merge or replacement to introduce the markers — review
    missing/incomplete/conflicting rules rather than replace host authority.
-   Check every role still explicitly loads that root file when used separately.
+   Follow the "gaining the markers" steps in `docs/install.md`. Check every role
+   still explicitly loads that root file when used separately.
 4. Bootstrap with `composer install --no-dev` in target `cli/`, then initialize
    missing records and validate. Use full installation only for development.
    Use `./cli/bin/workflow` or the absolute target path (optionally add `cli/bin`

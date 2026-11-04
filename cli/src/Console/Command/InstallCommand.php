@@ -23,6 +23,10 @@ final class InstallCommand extends BaseCommand
         '.phpunit.cache',
     ];
 
+    /** Delimiters of the kit-managed block inside root AGENTS.md. */
+    private const KIT_BEGIN = '<!-- BEGIN KIT WORKFLOW RULES';
+    private const KIT_END = '<!-- END KIT WORKFLOW RULES -->';
+
     public function __construct()
     {
         parent::__construct('install');
@@ -86,7 +90,11 @@ final class InstallCommand extends BaseCommand
         $copied = [];
         $skipped = [];
 
-        foreach (['AGENTS.md', 'README.md', 'LICENSE'] as $file) {
+        // The kit-managed AGENTS.md section is refreshed in place under
+        // --force; a marker-free host file is preserved for manual merge.
+        $agents = $this->refreshAgentsContract($kitRoot, $targetPath, $force, $copied, $skipped);
+
+        foreach (['README.md', 'LICENSE'] as $file) {
             $source = $kitRoot.'/'.$file;
             $this->copyFile($source, $targetPath.'/'.$file, false, $copied, $skipped);
         }
@@ -123,20 +131,127 @@ final class InstallCommand extends BaseCommand
 
         $output->writeln('');
         $output->writeln('Next steps (manual):');
-        $output->writeln('  This is a scaffold copy only; no automatic merges or deletions.');
+        if ($agents === 'merged') {
+            $output->writeln('  Refreshed the marker-delimited AGENTS.md section only; nothing outside it changed, and there are no other automatic merges or deletions.');
+        } else {
+            $output->writeln('  This is a scaffold copy only; no automatic merges or deletions.');
+        }
         $output->writeln('  OpenCode registration is automated for clean projects; existing configs are never overwritten.');
         $output->writeln(sprintf('  Review %s/docs/install.md first.', $targetPath));
         $output->writeln('  Existing config: manually merge only the missing agents, default and model entries; never overwrite host settings.');
         $output->writeln('  Skills under .agents/skills/ are auto-discovered; no skills entry is needed.');
         $output->writeln('  Expected: workflow-orchestrator primary/default; workflow-explorer, workflow-worker and workflow-verifier subagents.');
         $output->writeln('  Reload OpenCode in the target, then the catalog check above turns green (catalog proof only, not a paid LLM proof).');
-        $output->writeln('  Manually merge the kit AGENTS.md rules into preserved host instructions.');
+        if ($agents === 'merged') {
+            $output->writeln('  AGENTS.md host rules live below the END KIT WORKFLOW RULES marker; keep project additions there, the block above is kit-managed.');
+        } else {
+            $output->writeln('  Manually merge the kit AGENTS.md rules into preserved host instructions.');
+        }
         $output->writeln(sprintf('  cd %s/cli && composer install --no-dev', $targetPath));
         $output->writeln(sprintf('  Use ./cli/bin/workflow from the target or %s/cli/bin/workflow (optionally add %s/cli/bin to PATH):', $targetPath, $targetPath));
         $output->writeln(sprintf('    %s/cli/bin/workflow --project %s validate', $targetPath, $targetPath));
         $output->writeln(sprintf('  Refresh the derived board after manual edits: %s/cli/bin/workflow --project %s board', $targetPath, $targetPath));
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Refresh the kit-managed section of root AGENTS.md in place.
+     *
+     * A fresh target gets the kit file verbatim. An existing host file is
+     * overwritten only under --force AND only when both the kit and host file
+     * carry the managed markers; the host's text before the BEGIN marker and
+     * after the END marker is preserved untouched. A marker-free host file is
+     * never rewritten — it needs a reviewed manual merge. Links and type
+     * collisions are held, matching the ordinary copy guards.
+     *
+     * @return 'created'|'merged'|'preserved'|'unmarked'|'held'
+     */
+    private function refreshAgentsContract(string $kitRoot, string $targetPath, bool $force, array &$copied, array &$skipped): string
+    {
+        $source = $kitRoot.'/AGENTS.md';
+        $destination = $targetPath.'/AGENTS.md';
+
+        if (is_link($source) || !is_file($source)) {
+            if (file_exists($destination) || is_link($destination)) {
+                $skipped[] = $destination;
+            }
+
+            return 'held';
+        }
+        if (is_link($destination) || (file_exists($destination) && !is_file($destination))) {
+            $skipped[] = $destination;
+
+            return 'held';
+        }
+
+        // Fresh install: copy the kit file verbatim, managed markers included.
+        if (!file_exists($destination)) {
+            if (!@copy($source, $destination)) {
+                throw new \RuntimeException(sprintf('Cannot copy AGENTS.md to %s', $destination));
+            }
+            $copied[] = $destination;
+
+            return 'created';
+        }
+
+        if (!$force) {
+            $skipped[] = $destination;
+
+            return 'preserved';
+        }
+
+        $kitContents = (string) file_get_contents($source);
+        $targetContents = (string) file_get_contents($destination);
+        $merged = $this->mergeManagedSection($kitContents, $targetContents);
+        if ($merged === null) {
+            // Unmarked host file: never rewrite it.
+            $skipped[] = $destination;
+
+            return 'unmarked';
+        }
+        if ($merged === $targetContents) {
+            return 'preserved';
+        }
+        if (@file_put_contents($destination, $merged) === false) {
+            throw new \RuntimeException(sprintf('Cannot write AGENTS.md at %s', $destination));
+        }
+        $copied[] = $destination;
+
+        return 'merged';
+    }
+
+    /**
+     * Replace the target's marker-delimited block with the kit's, keeping all
+     * surrounding host text. Returns null when either file lacks a well-formed
+     * BEGIN/END pair, so the caller preserves the file for manual merge.
+     */
+    private function mergeManagedSection(string $kit, string $target): ?string
+    {
+        $region = $this->managedRegion($kit);
+        if ($region === null) {
+            return null;
+        }
+
+        $begin = strpos($target, self::KIT_BEGIN);
+        $end = strpos($target, self::KIT_END);
+        if ($begin === false || $end === false || $end < $begin) {
+            return null;
+        }
+
+        return substr($target, 0, $begin).$region.substr($target, $end + strlen(self::KIT_END));
+    }
+
+    /** The full kit block from BEGIN through END, inclusive; null when absent. */
+    private function managedRegion(string $kit): ?string
+    {
+        $begin = strpos($kit, self::KIT_BEGIN);
+        $end = strpos($kit, self::KIT_END);
+        if ($begin === false || $end === false || $end < $begin) {
+            return null;
+        }
+
+        return substr($kit, $begin, $end + strlen(self::KIT_END) - $begin);
     }
 
     private function registerOpenCodeAgents(string $kitRoot, string $targetPath, OutputInterface $output): void
