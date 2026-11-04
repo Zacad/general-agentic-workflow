@@ -3,7 +3,8 @@
 A small, Markdown-first kit for coordinating LLM agents. Item records preserve
 scope, decisions and evidence; a project-local CLI provides compact delegation
 views, dependency/ownership checks and a generated board. Explorers investigate,
-workers deliver, and independent verifiers check frozen outcomes.
+design workers author task solution designs, implementation workers deliver, and
+independent verifiers check designs and frozen outcomes.
 
 [AGENTS.md](AGENTS.md) is the operating contract. Roles load it explicitly;
 skills supply methods rather than another protocol. See the
@@ -61,15 +62,29 @@ cat > .workflow/Architecture.md <<'EOF'
 The CLI owns the records; the owned output note is the sole deliverable.
 EOF
 workflow design E-001 --text "Scope map: T-001 owns .workflow/items/T-001/outputs/greeting.txt, covers the sole criterion, has no dependencies; integrate by checking exact bytes. One task, no subtasks: the note is the sole independently acceptable outcome, so the task records an explicit no-split reason. No open risks."
-workflow design T-001 --text "Follow parent Design; write hello plus newline at the owned path; check with cmp. No open risks." --phase design
+# A DESIGN WORKER (its own instance) reads the full item and authors the task
+# solution design; the orchestrator does not write it and cannot approve it:
+workflow show T-001
+mkdir -p .workflow/items/T-001/outputs
+cat > .workflow/items/T-001/outputs/design.md <<'EOF'
+Follow parent Design; write hello plus newline at the owned path; check with cmp. No open risks.
+EOF
+# The orchestrator records that authored design (no approval yet):
+workflow design T-001 --file .workflow/items/T-001/outputs/design.md --phase design
+# An independent DESIGN VERIFIER checks it before the user sees it:
+workflow brief T-001 --for verifier
+# After the design verification passes, the orchestrator presents the design and
+# the user approves it; the approval is recorded in the same mutation:
+workflow design T-001 --file .workflow/items/T-001/outputs/design.md --approve --by user \
+  --confirmation "Approve this design"
 workflow review E-001
 # After the user confirms the exact new child scope (epic scope is unchanged):
 workflow approve T-001 --by user
 workflow ready
 
-# Coordinator starts work, then the worker reads its brief and writes the note:
-workflow set T-001 status=in-progress phase=implement
+# A SEPARATE IMPLEMENTATION WORKER reads its brief and writes the note:
 workflow brief T-001 --for worker
+workflow set T-001 status=in-progress phase=implement
 mkdir -p .workflow/items/T-001/outputs
 printf 'hello\n' > .workflow/items/T-001/outputs/greeting.txt
 # Coordinator records the worker's returned receipt:

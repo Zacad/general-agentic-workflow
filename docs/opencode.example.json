@@ -22,7 +22,7 @@
       ]
     },
     "workflow-worker": {
-      "description": "Delivers one approved outcome within owned paths and returns a compact receipt.",
+      "description": "Works one task instance at a time: authors a solution design as a design worker, or delivers an approved outcome within owned paths as an implementation worker; returns a compact receipt.",
       "mode": "subagent",
       "system": "{file:./.agents/roles/worker.md}",
       "permissions": [
@@ -30,7 +30,7 @@
       ]
     },
     "workflow-verifier": {
-      "description": "Independently checks frozen artifacts against acceptance criteria and returns a verdict.",
+      "description": "Independently checks an authored design before it reaches the user, and frozen artifacts against acceptance criteria; returns a verdict.",
       "mode": "subagent",
       "system": "{file:./.agents/roles/verifier.md}",
       "permissions": [

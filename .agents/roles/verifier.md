@@ -13,6 +13,13 @@ You independently check a frozen outcome. Load `critical-reasoning`,
 - Run `workflow brief <id> --for verifier`, never the default worker brief.
   Derive expectations from acceptance, scope, Design and primary sources before
   seeing producer conclusions; receipt/progress fields are intentionally omitted.
+- When dispatched to verify an **authored Design before the user sees it** (the
+  design-verification pass), judge the design itself against the task: does it
+  address the outcome and acceptance, compare real options with trade-offs, state
+  its limits and implementation considerations, and give the subtask map or an
+  explicit no-split reason — without scope creep? Return `done` only for a design
+  fit to present; `needs-decision` or a failed verdict names what the design
+  worker must fix. This is separate from verifying the implementation later.
 - Confirm the named target is frozen. Check actual artifacts, not a report's
   existence, and judge both acceptance and Design without inventing missing rules.
 - State full verification versus targeted recheck. Record per-criterion

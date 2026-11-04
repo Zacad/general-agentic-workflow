@@ -1,5 +1,7 @@
 # Project workflow rules
 
+<!-- BEGIN KIT WORKFLOW RULES (kit-managed; refreshed by `install --force`; put your project-specific rules below the END marker so they survive updates) -->
+
 Always load skills 'clear-communication' and 'critical reasoning' on the very begining before you do anything else.
 
 This is the canonical operating contract. Every role loads the project's root
@@ -14,7 +16,7 @@ the work rather than every skill:
 | --- | --- |
 | New project | start-project — runs requirements + code-architecture |
 | Epic framing/decomposition | decompose-work |
-| Task solution design | code-architecture (task solution design route) |
+| Task solution design | the design worker chooses per task type (default code-architecture route 2) |
 | Task execution | work-task |
 
 ## Coordination and records
@@ -22,10 +24,12 @@ the work rather than every skill:
 **The orchestrator coordinates; it does not read the work.** Its bounded read
 views are `status`, `ready`, role-specific `brief` and exact-scope `review`.
 These are read limits, not a ban on coordinator mutations: the orchestrator
-may frame items, write plans/designs/decisions, update state, record approvals
-and receipts, and close work through the CLI. It does not open whole item
-files, reports, diffs or logs; delegate a bounded question instead.
-Explorers, workers and verifiers read sources/artifacts in their own context.
+may frame items, write plans, record designs and decisions authored by workers,
+update state, record approvals and receipts, and close work through the CLI. It
+does not author solution designs and does not open whole item files, reports,
+diffs or logs; a design worker authors each task Design (Work sequence) and the
+orchestrator records and presents it. Explorers, workers and verifiers read
+sources/artifacts in their own context.
 
 ```
 .workflow/
@@ -157,30 +161,58 @@ what changed. Changes are classified as:
 The system tracks the last approved scope automatically. Delta approval validates
 that no material changes exist before approving.
 
-Tasks and subtasks have a second, separate gate: implementation begins only
-after the solution design is presented to the user and approved. A task
-Design states its subtask decomposition — the subtask map, or the explicit
-reason no finer split exists. Record that
-approval with `workflow design <id> --approve` in the same mutation that
-writes the Design; the CLI refuses worker dispatch without it ('design not
-approved' / 'stale design approval'). Scope approval survives Design
+Tasks and subtasks have a second, separate gate. **A design worker authors the
+solution design; the orchestrator does not.** The sequence is: dispatch a design
+worker (its own instance), have it author the Design as an artifact from the full
+item and the exploration evidence, record that Design with `workflow design <id>
+--file ...` (no `--approve` yet), verify it with an independent design verifier,
+then present the verified design to the user. Implementation begins only after
+the user approves the presented design; a task Design states its subtask
+decomposition — the subtask map, or the explicit reason no finer split exists.
+Record that approval with `workflow design <id> --approve` in the same mutation
+that writes the approved Design; the CLI refuses the *implementation* worker
+dispatch without it ('design not approved' / 'stale design approval'). The
+design worker is dispatched by reference and reads the whole record with
+`workflow show <id>` plus its `outputs/`, because the gated `brief --for worker`
+packet is reserved for implementation dispatch. Scope approval survives Design
 changes; design approval does not — a material Design change stales it, so
-re-present the design and re-approve before dispatch.
+re-present the design and re-approve before dispatch. The design worker and the
+implementation worker are separate independent worker instances; an instance
+that authored a Design never implements it, so authoring and building stay
+independently reviewable.
 
 ## Work sequence
 
 Apply the same approach at each level, scaled to the outcome:
 
-1. **Plan before exploration:** question, dimensions, sources, stop conditions
-   and acceptance mapping. Record with `workflow plan`.
+1. **Plan before exploration (orchestrator):** question, dimensions, sources,
+   stop conditions and acceptance mapping. Record with `workflow plan`.
 2. **Explore:** give each explorer one bounded question and
    `workflow brief <id> --for explorer`. Evidence goes under the assigned
    `.workflow/items/<ID>/outputs/` path. Sequence dependent questions.
-3. **Design from evidence:** artifact outline, canonical claims/values,
-   decisions, trade-offs, checks and open risks. Record with `workflow design`.
-4. **Implement:** use `phase=implement`; dispatch a worker only with current
-   scope and design approval, Plan/Design, required evidence (or justified
-   no-exploration), done dependencies and uncontested ownership. `ready`
+3. **Design from evidence (design worker):** dispatch a design worker — its own
+   instance, separate from any later implementation worker. It reads the full
+   item (`workflow show <id>`) and the exploration evidence, chooses the method
+   skill for the task type (default code-architecture route 2), and authors the
+   solution design: artifact outline, drivers, compared options with trade-offs,
+   the chosen approach and its limits, implementation considerations, checks and
+   open risks, and the subtask decomposition. It returns the design as an
+   artifact under `outputs/` plus the receipt; it does not approve its own design.
+   When evidence is insufficient it returns `needs-decision` requesting bounded
+   exploration; when the task is too broad it returns `needs-decision` with a
+   proposed split — the orchestrator, not the worker, frames any new items. The
+   orchestrator records the authored design with `workflow design <id> --file ...`
+   (no `--approve`) and dispatches an independent **design verifier**
+   (`workflow brief <id> --for verifier`) before presenting it to the user; only
+   after a passing design verification does the orchestrator present the design
+   for the user's approval, then re-record it with `--approve`. A task with
+   current scope approval but no design approval is not yet `ready` — it appears
+   in `status` waiting as 'design not approved'; that is precisely the work to
+   dispatch a design worker for, not a block.
+4. **Implement:** use `phase=implement`; dispatch an implementation worker — a
+   different instance from the design worker — only with current scope and design
+   approval, Plan/Design, required evidence (or justified no-exploration), done
+   dependencies and uncontested ownership. `ready`
    checks computed readiness and reports overlaps; it does not check every
    procedural condition here.
 5. **Verify:** freeze named paths, use `phase=verify`, and assign an independent
@@ -191,8 +223,12 @@ Apply the same approach at each level, scaled to the outcome:
    verifier ...`, then `workflow close <id>` in a separate call.
 
 Small work needs one item, short exact scope approval, a one-line Plan and
-Design (with its design approval), and an explicit reason if no exploration
-is needed. It normally still uses an independent verifier. A deliberate
+a one-line Design authored by a design worker and recorded with its design
+approval, and an explicit reason if no exploration is needed. Design and
+implementation still use separate worker instances and it normally uses an
+independent verifier; collapsing them (one instance designing and implementing
+its own work) requires the same explicit recorded reason as a `close --force`
+exception, never silent triviality. A deliberate
 `close --force --reason "..."` records an unverified exception, never
 verifier success; triviality is not an implicit exemption.
 
@@ -223,12 +259,16 @@ packet stays out of the coordinator's context. Always pass `--for`:
 | Role | Packet |
 | --- | --- |
 | `explorer` | Plan and repository-relative evidence target |
-| `worker` | Plan, Design, parent Design, upstream artifacts, last result |
+| `design worker` | Full item (`workflow show <id>`) and its `outputs/`, not the gated worker brief; authors the Design as an artifact |
+| `worker` | Implementation dispatch: Plan, Design, parent Design, upstream artifacts, last result |
 | `verifier` | Acceptance, Design, decisions and artifacts; no producer receipt/progress |
 
 The default is worker, not verifier. Blinding is field-based, not censorship
 of approved narrative. Route artifacts through the orchestrator; workers do
-not coordinate directly. Only the orchestrator mutates item records. A worker
+not coordinate directly. Only the orchestrator mutates item records, so a
+design worker authors its design into `outputs/` and the orchestrator records
+that artifact — the design worker, the design verifier and the implementation
+worker are separate independent instances. A worker
 may change project PRD/Architecture only when those documents are owned.
 
 Every delegated role returns exactly this receipt; detail stays in artifacts:
@@ -293,3 +333,12 @@ Migration preserves all item data, relationships, and history. It handles
 malformed items gracefully (skips them). Both flat and hierarchical structures
 are fully supported, so migration is optional but recommended for projects
 with many items.
+
+<!-- END KIT WORKFLOW RULES -->
+
+## Project-specific rules (host-owned; preserved across `install --force`)
+
+Add this project's own conventions below. The kit never rewrites this section —
+only the block above between the BEGIN/END markers is managed. Keep host
+authority: where a project rule narrows or extends a kit rule, the project rule
+governs here and the roles honor the stricter bound.

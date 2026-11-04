@@ -33,12 +33,16 @@ constraints, and the artifact path for the comparison.
    cost, feedback speed, determinism and prerequisites.
 6. Recommend one approach, state its limits, and name the signal that would
    reverse the choice.
-7. **Present → discuss → gate:** present the comparison and recommendation
-   to the user and discuss them; implementation proceeds only after the user
-   approves the presented design. For route 2 on a workflow item, record the
-   approval with `workflow design <id> --approve` in the same mutation that
-   writes the item's `## Design`; the CLI refuses worker dispatch without
-   it, and a material design change requires re-approval.
+7. **Author → verify → present → gate:** on a workflow item this is route 2 and
+   the author is a **design worker**, not the orchestrator. The design worker
+   produces the comparison and recommendation as an artifact and returns it; it
+   does not approve its own design. The orchestrator records the Design with
+   `workflow design <id> --file ...` (no `--approve`), an independent verifier
+   checks the design, and only then does the orchestrator present it to the user
+   and discuss it. On the user's approval the orchestrator re-records with
+   `workflow design <id> --approve` in the same mutation that writes the approved
+   `## Design`; the CLI refuses the implementation worker dispatch without it, and
+   a material design change requires re-approval.
 
 ## Output
 

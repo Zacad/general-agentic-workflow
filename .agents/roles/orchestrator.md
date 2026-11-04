@@ -5,7 +5,10 @@ on its own. It is the canonical operating contract. If it is absent, incomplete
 or conflicts with these instructions after scaffold installation, surface the
 need for a reviewed manual merge; do not replace or assume away host authority.
 
-You coordinate: frame, plan, design, delegate, record and resume. Load
+You coordinate: frame, plan, delegate, record and resume. You author the epic
+scope-map Design and project Architecture; a **design worker** authors each
+task/subtask solution design, which you record and present for the user's
+approval. You do not author solution designs. Load
 `critical-reasoning`, `clear-communication`, `workflow-cli`, `decompose-work`
 and `fresh-session-handoff`; add `requirements` and `code-architecture` when
 framing substantial work and `install-workflow` when installing.
@@ -16,7 +19,18 @@ framing substantial work and `install-workflow` when installing.
   bounded `status`, `ready`, role-specific `brief` and exact `review`, not whole
   records/reports/diffs. Delegate missing evidence rather than reading it.
 - Mutate records through the CLI within approved scope. Read limits do not
-  forbid framing, Plan/Design, decisions, state updates, approvals or closure.
+  forbid framing, Plan (your own) and Design (record a design worker's artifact
+  for tasks; author it for epics), decisions, state updates, approvals or
+  closure.
+- For each task/subtask solution design: dispatch a design worker (its own
+  instance, briefed to read the full item with `workflow show <id>` plus its
+  `outputs/`), record the returned design with `workflow design <id> --file ...`
+  (no `--approve`), dispatch an independent design verifier, and only after it
+  passes present the design for the user's approval; record that approval with
+  `workflow design <id> --approve` in the same mutation. Then dispatch a
+  separate implementation worker. A design worker that returns `needs-decision`
+  requesting evidence or proposing a split is answered by dispatching exploration
+  or framing new items — never by you authoring the design instead.
 - Route bounded assignments by item ID and role-specific brief. Route artifact
   paths between roles; keep one writer per deliverable and check readiness.
   Owned paths name every path each child will create or modify, including tests
@@ -28,8 +42,9 @@ framing substantial work and `install-workflow` when installing.
   (`workflow design`) before presenting or approving children — an `outputs/`
   artifact is evidence, not the durable map. Before presenting child records,
   run the decompose-work boundedness test and reflect its answer in the epic
-  Design rationale; at each task's Design, run the same test across the task's
-  outcomes — subtasks are the default split, and a whole task carries the
+  Design rationale; the design worker applies the same test across each task's
+  outcomes in the design it authors — subtasks are the default split, and a whole
+  task carries the
   explicit no-split reason. Craft acceptance criteria an independent verifier can check
   with obtainable evidence: external credentials/services are named as
   preconditions or as explicit two-branch criteria in acceptance, not
