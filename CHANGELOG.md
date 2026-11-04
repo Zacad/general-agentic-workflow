@@ -3,6 +3,32 @@
 User-facing changes to the workflow kit. Versions match the CLI
 (`workflow --version`).
 
+## 5.4.1
+
+Fixes `workflow migrate` for items that have subtasks, and makes the kit test
+suite pass from a clean checkout on macOS.
+
+- **`migrate` handles tasks with subtasks.** The flat-to-hierarchical migration
+  moved subtasks before their parent task, so any task that had subtasks failed
+  with "Cannot move item" (`Directory not empty`). Moves now run parent-first by
+  destination depth, every successful move is journaled (including the epic
+  merge phase) and undone in reverse order on failure, and a move onto an
+  existing destination is refused instead of replacing it. If undoing a failed
+  migration itself fails, both trees are kept and the recovery failure is
+  reported. Item files and `outputs/` are preserved byte for byte; the
+  `--dry-run` plan is unchanged.
+- **Tests pass on macOS from a clean checkout.** The shared test root is now a
+  canonical path, so macOS's `/var` and `/tmp` symlinks no longer trip the
+  initializer's symlink check, and the initializer's safety tests assert the
+  exact unsafe path component. The documentation test no longer reads gitignored
+  `.workflow/` records; it checks tracked documents and a synthetic tracked
+  fixture (`cli/tests/fixtures/architecture-source-references.md`) and still
+  fails on a missing document or a broken link. No production behaviour other
+  than `migrate` changed. Not covered: Linux/CI runs.
+- **Known gap.** `migrate` does not rewrite `owns` and `artifacts` paths in item
+  records that point at the old flat locations (`.workflow/items/<ID>/outputs/…`);
+  `validate` reports them as missing artifacts until they are updated by hand.
+
 ## 5.4.0
 
 The kit operating contract slimmed to cross-role invariants, with role
