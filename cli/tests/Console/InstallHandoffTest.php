@@ -14,8 +14,7 @@ final class InstallHandoffTest extends WorkflowTestCase
 
     protected function setUp(): void
     {
-        $this->root = '/tmp/opencode/handoff-test-'.bin2hex(random_bytes(6));
-        mkdir($this->root, 0777, true);
+        parent::setUp();
         $this->kit = $this->root.'/kit';
         foreach ([
             'AGENTS.md' => 'kit rules',
@@ -52,6 +51,9 @@ exit($application->run(new Symfony\Component\Console\Input\ArrayInput($input)));
 
     protected function tearDown(): void
     {
+        if (!isset($this->root) || !is_dir($this->root)) {
+            return;
+        }
         $iterator = new \RecursiveIteratorIterator(
             new \RecursiveDirectoryIterator($this->root, \FilesystemIterator::SKIP_DOTS),
             \RecursiveIteratorIterator::CHILD_FIRST,

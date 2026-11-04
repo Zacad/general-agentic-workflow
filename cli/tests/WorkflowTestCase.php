@@ -13,13 +13,21 @@ abstract class WorkflowTestCase extends TestCase
     protected function setUp(): void
     {
         $base = getenv('WORKFLOW_TEST_ROOT') ?: sys_get_temp_dir();
-        $this->root = rtrim($base, '/').'/workflow-test-'.bin2hex(random_bytes(6));
-        mkdir($this->root, 0777, true);
+        $child = rtrim($base, '/').'/workflow-test-'.bin2hex(random_bytes(6));
+        if (!@mkdir($child, 0777, true)) {
+            throw new \RuntimeException('Failed to create test root: '.$child);
+        }
+        $resolved = realpath($child);
+        if ($resolved === false) {
+            @rmdir($child);
+            throw new \RuntimeException('Failed to resolve test root: '.$child);
+        }
+        $this->root = $resolved;
     }
 
     protected function tearDown(): void
     {
-        if (!is_dir($this->root)) {
+        if (!isset($this->root) || !is_dir($this->root)) {
             return;
         }
 

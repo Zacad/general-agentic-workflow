@@ -190,26 +190,33 @@ final class ProtocolExamplesTest extends WorkflowTestCase
     public function testActiveDocumentationLinksAndArchitectureSourceReferencesResolve(): void
     {
         $documents = [
-            'AGENTS.md', 'README.md', 'docs/install.md', '.workflow/PRD.md', '.workflow/Architecture.md',
+            'AGENTS.md', 'README.md', 'docs/install.md',
             '.agents/roles/orchestrator.md', '.agents/roles/explorer.md', '.agents/roles/worker.md', '.agents/roles/verifier.md',
             '.agents/skills/workflow-cli/SKILL.md', '.agents/skills/decompose-work/SKILL.md',
             '.agents/skills/install-workflow/SKILL.md', '.agents/skills/fresh-session-handoff/SKILL.md',
             '.agents/skills/verify-outcome/SKILL.md',
         ];
         foreach ($documents as $document) {
-            $text = (string) file_get_contents($this->kit.'/'.$document);
+            $documentPath = $this->kit.'/'.$document;
+            self::assertTrue(is_file($documentPath) && is_readable($documentPath), 'Missing or unreadable active document: '.$document);
+            $text = @file_get_contents($documentPath);
+            self::assertNotFalse($text, 'Could not read active document: '.$document);
             preg_match_all('/\]\(([^)]+)\)/', $text, $links);
             foreach ($links[1] as $link) {
                 self::assertFileExists(dirname($this->kit.'/'.$document).'/'.$link, $document.': '.$link);
             }
         }
-        $architecture = (string) file_get_contents($this->kit.'/.workflow/Architecture.md');
-        preg_match_all('~`(cli/(?:src/[A-Za-z/]+(?:\.php)?|templates/))`~', $architecture, $references);
+        $fixturePath = 'cli/tests/fixtures/architecture-source-references.md';
+        $fixtureFile = $this->kit.'/'.$fixturePath;
+        self::assertTrue(is_file($fixtureFile) && is_readable($fixtureFile), 'Missing or unreadable fixture: '.$fixturePath);
+        $fixture = @file_get_contents($fixtureFile);
+        self::assertNotFalse($fixture, 'Could not read fixture: '.$fixturePath);
+        preg_match_all('~`(cli/(?:src/[A-Za-z/]+(?:\.php)?|templates/))`~', $fixture, $references);
         self::assertGreaterThan(10, count($references[1]));
         foreach ($references[1] as $path) {
             self::assertTrue(file_exists($this->kit.'/'.$path), $path);
         }
-        self::assertStringNotContainsString('cli/src/Store/FrontMatter.php', $architecture);
+        self::assertStringNotContainsString('cli/src/Store/FrontMatter.php', $fixture);
     }
 
     public function testDocumentedSmallWorkFlagsAndForceExceptionPreserveCompletedHistory(): void

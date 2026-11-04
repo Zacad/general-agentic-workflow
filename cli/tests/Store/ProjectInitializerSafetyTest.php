@@ -15,7 +15,7 @@ final class ProjectInitializerSafetyTest extends WorkflowTestCase
 
     protected function setUp(): void
     {
-        $this->root = '/tmp/opencode/initializer-test-'.bin2hex(random_bytes(6));
+        parent::setUp();
         mkdir($this->root.'/templates', 0777, true);
         $this->templates = $this->root.'/templates';
         file_put_contents($this->templates.'/PRD.md', '# {{PROJECT}} {{DATE}}');
@@ -25,6 +25,9 @@ final class ProjectInitializerSafetyTest extends WorkflowTestCase
 
     protected function tearDown(): void
     {
+        if (!isset($this->root) || !is_dir($this->root)) {
+            return;
+        }
         $iterator = new \RecursiveIteratorIterator(
             new \RecursiveDirectoryIterator($this->root, \FilesystemIterator::SKIP_DOTS),
             \RecursiveIteratorIterator::CHILD_FIRST,
@@ -89,6 +92,7 @@ final class ProjectInitializerSafetyTest extends WorkflowTestCase
         $directory = in_array($relative, ['.workflow', '.workflow/items'], true);
         if ($type === 'link' || $type === 'dangling') {
             symlink($this->root.($type === 'link' ? '/external' : '/missing'), $path);
+            self::assertTrue(is_link($path));
         } elseif ($directory) {
             file_put_contents($path, 'wrong type');
         } else {
@@ -99,7 +103,7 @@ final class ProjectInitializerSafetyTest extends WorkflowTestCase
             (new ProjectInitializer($this->templates))->initialize($host);
             self::fail('Unsafe initializer path was accepted: '.$relative);
         } catch (WorkflowException $exception) {
-            self::assertStringContainsString('Unsafe initializer path', $exception->getMessage());
+            self::assertSame(sprintf('Unsafe initializer path (symlink or wrong type): %s', $path), $exception->getMessage());
         }
         self::assertSame($before, $this->entries($host));
         self::assertSame('external bytes', file_get_contents($this->root.'/external/sentinel'));
@@ -123,19 +127,25 @@ final class ProjectInitializerSafetyTest extends WorkflowTestCase
     {
         if ($component === 'PRD.md') {
             rename($this->templates.'/PRD.md', $this->templates.'/real.md');
-            symlink($this->templates.'/real.md', $this->templates.'/PRD.md');
+            $unsafe = $this->templates.'/PRD.md';
+            symlink($this->templates.'/real.md', $unsafe);
+            self::assertTrue(is_link($unsafe));
         } elseif ($component === 'templates') {
             rename($this->templates, $this->root.'/real-templates');
-            symlink($this->root.'/real-templates', $this->templates);
+            $unsafe = $this->templates;
+            symlink($this->root.'/real-templates', $unsafe);
+            self::assertTrue(is_link($unsafe));
         } else {
-            symlink($this->root, $this->root.'/alias');
-            $this->templates = $this->root.'/alias/templates';
+            $unsafe = $this->root.'/alias';
+            symlink($this->root, $unsafe);
+            self::assertTrue(is_link($unsafe));
+            $this->templates = $unsafe.'/templates';
         }
         try {
             (new ProjectInitializer($this->templates))->initialize($this->root.'/host');
             self::fail('Linked source was accepted.');
         } catch (WorkflowException $exception) {
-            self::assertStringContainsString('Unsafe initializer path', $exception->getMessage());
+            self::assertSame(sprintf('Unsafe initializer path (symlink or wrong type): %s', $unsafe), $exception->getMessage());
         }
         self::assertDirectoryDoesNotExist($this->root.'/host/.workflow');
     }
@@ -154,12 +164,14 @@ final class ProjectInitializerSafetyTest extends WorkflowTestCase
 
     public function testLinkedProjectAncestorIsRejected(): void
     {
-        symlink($this->root.'/host', $this->root.'/alias');
+        $unsafe = $this->root.'/alias';
+        symlink($this->root.'/host', $unsafe);
+        self::assertTrue(is_link($unsafe));
         try {
             (new ProjectInitializer($this->templates))->initialize($this->root.'/alias/child');
             self::fail('Linked ancestor was accepted.');
         } catch (WorkflowException $exception) {
-            self::assertStringContainsString('Unsafe initializer path', $exception->getMessage());
+            self::assertSame(sprintf('Unsafe initializer path (symlink or wrong type): %s', $unsafe), $exception->getMessage());
         }
         self::assertDirectoryDoesNotExist($this->root.'/host/child');
     }
