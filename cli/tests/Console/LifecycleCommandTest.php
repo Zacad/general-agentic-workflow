@@ -141,6 +141,17 @@ final class LifecycleCommandTest extends WorkflowTestCase
         self::assertContains('new-report.md', $item->artifacts);
     }
 
+    #[DataProvider('invalidatingReceipts')]
+    public function testReceiptsOtherThanVerifierDoneNeverPrintTheProofRecordedReminder(string $role, string $status): void
+    {
+        [$exit, $output] = $this->runCli([
+            'command' => 'result', 'id' => 'T-001', '--role' => $role, '--status' => $status,
+            '--finding' => 'No reminder here.', '--artifacts' => ['report.md'],
+        ]);
+        self::assertSame(0, $exit, $output);
+        self::assertStringNotContainsString('Verifier proof recorded', $output);
+    }
+
     public function testNormalVerifyPhaseResultCloseSequenceVerifiesResultingArtifactReferences(): void
     {
         [$exit, $output] = $this->runCli(['command' => 'set', 'id' => 'T-001', 'assignments' => ['phase=verify']]);

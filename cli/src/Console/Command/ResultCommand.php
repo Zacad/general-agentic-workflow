@@ -102,6 +102,12 @@ final class ResultCommand extends BaseCommand
         if ($decision !== '' && $decision !== 'none') {
             $output->writeln('Decision noted on receipt — if the user resolved this, also run: workflow decide '.$id);
         }
+        if ($role === 'verifier' && $status === 'done') {
+            $output->writeln(sprintf(
+                'Verifier proof recorded — it does not close the item: workflow close %s, or hold for review with workflow set %s status=review and workflow log %s "what is pending".',
+                $id, $id, $id,
+            ));
+        }
 
         return self::SUCCESS;
     }

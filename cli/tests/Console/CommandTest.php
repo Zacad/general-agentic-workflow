@@ -1028,4 +1028,48 @@ final class CommandTest extends WorkflowTestCase
             $text,
         );
     }
+
+    public function testVerifierDoneReceiptHintsTheReviewVsCloseDecision(): void
+    {
+        $this->runCli(['command' => 'init', '--name' => 'test']);
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'Item', '--kind' => 'task']);
+        $id = $this->idFrom($output);
+
+        [$exit, $text] = $this->runCli([
+            'command' => 'result',
+            'id' => $id,
+            '--role' => 'verifier',
+            '--status' => 'done',
+            '--finding' => 'Independently checked.',
+        ]);
+        self::assertSame(0, $exit, $text);
+        self::assertStringContainsString('workflow close '.$id, $text);
+        self::assertStringContainsString('workflow set '.$id.' status=review', $text);
+        self::assertStringContainsString('workflow log '.$id, $text);
+
+        [$exit, $json] = $this->runCli([
+            'command' => 'result',
+            'id' => $id,
+            '--role' => 'verifier',
+            '--status' => 'done',
+            '--finding' => 'Independently checked again.',
+            '--json' => true,
+        ]);
+        self::assertSame(0, $exit, $json);
+        $decoded = json_decode($json, true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame(['id', 'role', 'status', 'at'], array_keys($decoded));
+        self::assertSame($id, $decoded['id']);
+        self::assertSame('verifier', $decoded['role']);
+        self::assertSame('done', $decoded['status']);
+        self::assertStringNotContainsString('status=review', $json);
+
+        [$exit, $text] = $this->runCli([
+            'command' => 'result',
+            'id' => $id,
+            '--status' => 'done',
+            '--finding' => 'Implemented.',
+        ]);
+        self::assertSame(0, $exit, $text);
+        self::assertStringNotContainsString('status=review', $text);
+    }
 }

@@ -64,11 +64,13 @@ installing.
   obtain explicit, per-stage confirmation in its own turn before `approve`;
   never certify approval in the same conversational turn that produced the
   change.
-- Record returned receipts, explicitly identifying verifier receipts. Resolve
-  real decisions with the user and record user-resolved scope, acceptance or
-  design questions durably with `workflow decide` on the affected item; receipt
-  decision fields are prompts to record, not the record. Do not turn a producer
-  claim into verification.
+- Record returned receipts, explicitly identifying verifier receipts. A
+  verifier `done` is proof, not closure: decide `workflow close <id>`, or
+  `workflow set <id> status=review` with a `workflow log` note naming what is
+  pending. Resolve real decisions with the user and record user-resolved scope,
+  acceptance or design questions durably with `workflow decide` on the affected
+  item; receipt decision fields are prompts to record, not the record. Do not
+  turn a producer claim into verification.
 - Project documents: fill PRD.md before presenting the first epic for approval
   and refresh it at goal/non-goal changes and at each later epic's framing; fill
   Architecture.md when recording an epic Design; reconcile `decide` outcomes
