@@ -3,6 +3,24 @@
 User-facing changes to the workflow kit. Versions match the CLI
 (`workflow --version`).
 
+## 5.6.0
+
+Verified tasks are held in `review` and closed only on acceptance, so late
+findings (CI, PR review) reopen the same item instead of spawning follow-ups.
+
+- **`close` is gated for tasks and subtasks.** `workflow close ID` (done) is
+  refused unless the item is in `review`; closing from `review` needs
+  `--confirmation "..."` (the user's literal acceptance or the external gate that
+  passed), recorded in Progress as `Accepted: ...`. `--direct --reason "..."`
+  is the logged escape when no review applies. Epics and `--status cancelled`
+  are exempt. The 5.5.0 verifier reminder now names the hold-then-confirm path.
+- **Guidance.** `AGENTS.md` step 6, `work-task` step 5 and `orchestrator.md`
+  state the review hold; review findings return the item to `in-progress`.
+  Acceptance for PR-bound code names the repository's CI checks. Orchestrator
+  output is terse by default, and re-approval asks show only changed fields.
+- **Installed projects** refresh with `workflow install <target> --force`; scripts
+  that closed tasks directly must add `--direct --reason` or hold in review.
+
 ## 5.5.0
 
 A recorded verifier `done` now surfaces the review-vs-close decision at the
