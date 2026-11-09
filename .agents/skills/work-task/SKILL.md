@@ -41,12 +41,15 @@ a design worker reads the full item via `workflow show <id>`), and root
 4. **Verify:** freeze named paths, `phase=verify`, and dispatch an
    independent verifier with `workflow brief <id> --for verifier` — it
    derives expectations from acceptance and design before producer claims.
-5. **Review or close:** record the verifier receipt
-   (`workflow result <id> --role verifier --status done`), then decide in a
-   separate call: further review needed → `workflow set <id> status=review`
-   plus `workflow log <id> "what is pending"`; ready → `workflow close <id>`.
-   Review feedback returns the item to `in-progress` for rework and
-   re-verification.
+5. **Review, then close:** record the verifier receipt
+   (`workflow result <id> --role verifier --status done`), then in a separate
+   call hold the item: `workflow set <id> status=review` plus `workflow log
+   <id> "what is pending"` (PR/CI, deployment check, user acceptance), and tell
+   the user. Close with `workflow close <id> --confirmation "..."` only on the
+   user's acceptance or the named gate passing; the CLI refuses `close` on a
+   task/subtask outside `review` unless `--direct --reason "..."` records why no
+   review applies. Review feedback returns the item to `in-progress` for rework
+   and re-verification on the same item, not a follow-up.
 
 ## Escalation
 
@@ -58,5 +61,5 @@ affected work.
 ## Output
 
 An implemented task with current design approval, a recorded verifier
-receipt and a `done` close or `review` hold with a progress note — or an
+receipt, a `review` hold with a progress note, and a `done` close once accepted — or an
 escalated receipt naming the exact decision or blocker.

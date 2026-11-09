@@ -243,7 +243,7 @@ final class ProtocolExamplesTest extends WorkflowTestCase
 
         [$exit] = $this->cli($project, ['close', 'T-001']);
         self::assertNotSame(0, $exit);
-        $this->succeed($project, ['close', 'T-001', '--force', '--reason', 'Deliberate isolated example, not independent verification']);
+        $this->succeed($project, ['close', 'T-001', '--force', '--direct', '--reason', 'Deliberate isolated example, not independent verification']);
         $done = $store->load('T-001');
         self::assertSame(Status::Done, $done->status);
         self::assertNull($done->verifiedAt);

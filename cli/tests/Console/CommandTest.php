@@ -184,7 +184,7 @@ final class CommandTest extends WorkflowTestCase
         self::assertNotContains($b, array_column($ready, 'id'));
 
         // Completing A makes B ready once its own design approval is recorded.
-        $this->runCli(['command' => 'close', 'id' => $a, '--status' => 'done', '--force' => true]);
+        $this->runCli(['command' => 'close', 'id' => $a, '--status' => 'done', '--force' => true, '--direct' => true, '--reason' => 'test setup']);
         [, $output] = $this->runCli(['command' => 'ready', '--json' => true]);
         $ready = json_decode($output, true, flags: JSON_THROW_ON_ERROR);
         self::assertNotContains($b, array_column($ready, 'id'));
@@ -281,7 +281,7 @@ final class CommandTest extends WorkflowTestCase
             '--status' => 'done',
             '--finding' => 'Criterion passes.',
         ]);
-        $this->runCli(['command' => 'close', 'id' => $id, '--status' => 'done']);
+        $this->runCli(['command' => 'close', 'id' => $id, '--status' => 'done', '--direct' => true, '--reason' => 'test setup']);
 
         [$exit, $output] = $this->runCli(['command' => 'validate']);
         self::assertSame(0, $exit, $output);
@@ -326,7 +326,7 @@ final class CommandTest extends WorkflowTestCase
         self::assertStringContainsString('Renamed title', $html);
         self::assertStringContainsString('p7', $html);
 
-        $this->runCli(['command' => 'close', 'id' => $id, '--status' => 'done', '--force' => true]);
+        $this->runCli(['command' => 'close', 'id' => $id, '--status' => 'done', '--force' => true, '--direct' => true, '--reason' => 'test setup']);
         $html = (string) file_get_contents($board);
         self::assertStringContainsString('Done <span class="count">1</span>', $html);
         self::assertStringContainsString('Renamed title', $html);
@@ -354,7 +354,7 @@ final class CommandTest extends WorkflowTestCase
         $id = $this->idFrom($output);
         $this->runCli(['command' => 'approve', 'id' => $id]);
 
-        [$exit, $output] = $this->runCli(['command' => 'close', 'id' => $id, '--status' => 'done']);
+        [$exit, $output] = $this->runCli(['command' => 'close', 'id' => $id, '--status' => 'done', '--direct' => true, '--reason' => 'test setup']);
         self::assertSame(1, $exit);
         self::assertStringContainsString('no verifier receipt', $output);
 
@@ -366,7 +366,7 @@ final class CommandTest extends WorkflowTestCase
             '--finding' => 'Checked against the criteria.',
         ]);
 
-        [$exit, $output] = $this->runCli(['command' => 'close', 'id' => $id, '--status' => 'done']);
+        [$exit, $output] = $this->runCli(['command' => 'close', 'id' => $id, '--status' => 'done', '--direct' => true, '--reason' => 'test setup']);
         self::assertSame(0, $exit, $output);
     }
 
@@ -667,7 +667,7 @@ final class CommandTest extends WorkflowTestCase
         $this->runCli(['command' => 'approve', 'id' => $id]);
         $this->runCli(['command' => 'result', 'id' => $id, '--role' => 'verifier', '--status' => 'done', '--finding' => 'Checked.']);
 
-        [$exit, $output] = $this->runCli(['command' => 'close', 'id' => $id, '--status' => 'done']);
+        [$exit, $output] = $this->runCli(['command' => 'close', 'id' => $id, '--status' => 'done', '--direct' => true, '--reason' => 'test setup']);
         self::assertSame(0, $exit);
         self::assertStringContainsString('without a design', $output);
     }
@@ -1027,6 +1027,43 @@ final class CommandTest extends WorkflowTestCase
             'Decision recorded. If this changes project-level facts, reconcile .workflow/PRD.md or .workflow/Architecture.md now.',
             $text,
         );
+    }
+
+    public function testCloseGateRequiresReviewHoldAndConfirmationForTasks(): void
+    {
+        $this->runCli(['command' => 'init', '--name' => 'test']);
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'Gated', '--kind' => 'task', '--standalone-reason' => 'Gate test']);
+        $id = $this->idFrom($output);
+        $this->runCli(['command' => 'approve', 'id' => $id]);
+        $this->runCli(['command' => 'set', 'id' => $id, 'assignments' => ['status=in-progress']]);
+
+        [$exit, $text] = $this->runCli(['command' => 'close', 'id' => $id, '--force' => true]);
+        self::assertSame(1, $exit, $text);
+        self::assertStringContainsString('not review', $text);
+        self::assertStringContainsString('status=review', $text);
+
+        [$exit, $text] = $this->runCli(['command' => 'close', 'id' => $id, '--force' => true, '--direct' => true]);
+        self::assertSame(1, $exit, $text);
+        self::assertStringContainsString('--direct needs --reason', $text);
+
+        $this->runCli(['command' => 'set', 'id' => $id, 'assignments' => ['status=review']]);
+        [$exit, $text] = $this->runCli(['command' => 'close', 'id' => $id, '--force' => true]);
+        self::assertSame(1, $exit, $text);
+        self::assertStringContainsString('--confirmation', $text);
+
+        [$exit, $text] = $this->runCli(['command' => 'close', 'id' => $id, '--force' => true, '--confirmation' => 'user: accepted']);
+        self::assertSame(0, $exit, $text);
+        $body = (new \Workflow\Store\ItemStore($this->root))->load($id)->body;
+        self::assertStringContainsString('Accepted: user: accepted', $body);
+    }
+
+    public function testCloseGateExemptsCancellation(): void
+    {
+        $this->runCli(['command' => 'init', '--name' => 'test']);
+        [, $output] = $this->runCli(['command' => 'new', 'title' => 'Dropped', '--kind' => 'task', '--standalone-reason' => 'Gate test']);
+        $id = $this->idFrom($output);
+        [$exit, $text] = $this->runCli(['command' => 'close', 'id' => $id, '--status' => 'cancelled', '--reason' => 'Not needed']);
+        self::assertSame(0, $exit, $text);
     }
 
     public function testVerifierDoneReceiptHintsTheReviewVsCloseDecision(): void

@@ -97,8 +97,11 @@ workflow brief T-001 --for verifier
 printf 'hello\n' | cmp - .workflow/items/T-001/outputs/greeting.txt
 # Coordinator records the actual verifier receipt, then closes:
 workflow result T-001 --role verifier --status done --finding "cmp confirmed exact greeting bytes." \
-  --artifacts .workflow/items/T-001/outputs/greeting.txt --next close
-workflow close T-001
+  --artifacts .workflow/items/T-001/outputs/greeting.txt --next "hold for review"
+# Verified is not accepted: hold the task in review, close only on acceptance:
+workflow set T-001 status=review
+workflow log T-001 "Pending: user acceptance of the greeting note"
+workflow close T-001 --confirmation "user accepted the greeting note"
 
 # Coordinator dispatches an epic integration verifier for child completion/note:
 workflow set E-001 status=in-progress phase=verify

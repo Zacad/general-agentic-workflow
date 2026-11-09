@@ -153,8 +153,16 @@ Apply the same approach at each level, scaled to the outcome:
 5. **Verify:** freeze named paths, use `phase=verify`, and assign an
    independent verifier (`workflow brief <id> --for verifier`) that derives
    expectations before producer conclusions and reports limits.
-6. **Close:** record the verifier receipt with `workflow result <id> --role
-   verifier ...`, then `workflow close <id>` in a separate call.
+6. **Review, then close:** record the verifier receipt with `workflow result
+   <id> --role verifier ...`. A verified task/subtask is held, not closed:
+   `workflow set <id> status=review` plus a `workflow log` note naming the
+   pending gate (PR/CI, deployment check, user acceptance). Review findings
+   return the item to `in-progress` on the same item — no follow-up. Close
+   in a separate call with `workflow close <id> --confirmation "..."` only on
+   the user's acceptance or the named external gate passing; the CLI refuses
+   `close` on a task/subtask not in `review`. Only when no review applies,
+   `close <id> --direct --reason "..."` records that exception. Epics close
+   without the hold.
 
 Small work needs one item, short exact scope approval, a one-line Plan and a
 one-line Design authored by a design worker and recorded with its design

@@ -59,7 +59,7 @@ final class LifecycleCommandTest extends WorkflowTestCase
 
     private function close(): void
     {
-        [$exit, $output] = $this->runCli(['command' => 'close', 'id' => 'T-001']);
+        [$exit, $output] = $this->runCli(['command' => 'close', 'id' => 'T-001', '--direct' => true, '--reason' => 'test setup']);
         self::assertSame(0, $exit, $output);
         self::assertSame(Status::Done, $this->store->load('T-001')->status);
     }
@@ -108,7 +108,7 @@ final class LifecycleCommandTest extends WorkflowTestCase
             self::assertTrue($this->store->load('T-001')->isApproved());
         }
         $before = $this->tree();
-        [$exit, $output] = $this->runCli(['command' => 'close', 'id' => 'T-001']);
+        [$exit, $output] = $this->runCli(['command' => 'close', 'id' => 'T-001', '--direct' => true, '--reason' => 'test setup']);
         self::assertSame(1, $exit, $output);
         self::assertStringContainsString('no verifier receipt for the current target', $output);
         self::assertSame($before, $this->tree());
@@ -161,7 +161,7 @@ final class LifecycleCommandTest extends WorkflowTestCase
         $proof = $this->store->load('T-001')->verifiedAt;
         [$exit, $output] = $this->runCli(['command' => 'set', 'id' => 'T-001', 'assignments' => ['phase=verify', 'priority=7']]);
         self::assertSame(0, $exit, $output);
-        [$exit, $output] = $this->runCli(['command' => 'close', 'id' => 'T-001', '--reason' => 'Checked.', '--json' => true]);
+        [$exit, $output] = $this->runCli(['command' => 'close', 'id' => 'T-001', '--direct' => true, '--reason' => 'Checked.', '--json' => true]);
         self::assertSame(0, $exit, $output);
         self::assertTrue(json_decode($output, true, flags: JSON_THROW_ON_ERROR)['verified']);
         $item = $this->store->load('T-001');
@@ -247,7 +247,7 @@ final class LifecycleCommandTest extends WorkflowTestCase
         ]);
         self::assertSame(0, $exit, $output);
         [$exit, $output] = $this->runCli([
-            'command' => 'close', 'id' => 'T-001', '--force' => true, '--reason' => 'Explicit exception.', '--json' => true,
+            'command' => 'close', 'id' => 'T-001', '--force' => true, '--direct' => true, '--reason' => 'Explicit exception.', '--json' => true,
         ]);
         self::assertSame(0, $exit, $output);
         self::assertFalse(json_decode($output, true, flags: JSON_THROW_ON_ERROR)['verified']);
@@ -266,7 +266,7 @@ final class LifecycleCommandTest extends WorkflowTestCase
         $item->parent = 'T-002';
         file_put_contents($this->store->itemPath('T-001'), FrontMatter::render($item->toArray(), $item->body));
         $before = $this->tree();
-        [$exit, $output] = $this->runCli(['command' => 'close', 'id' => 'T-001', '--force' => true]);
+        [$exit, $output] = $this->runCli(['command' => 'close', 'id' => 'T-001', '--force' => true, '--direct' => true, '--reason' => 'test setup']);
         self::assertSame(1, $exit, $output);
         self::assertStringContainsString('task parent must be a epic', $output);
         self::assertSame($before, $this->tree());
@@ -277,11 +277,11 @@ final class LifecycleCommandTest extends WorkflowTestCase
         $this->verify();
         $reason = "Additional text\n\n## Design\n\nA second material design";
         $before = $this->tree();
-        [$exit, $output] = $this->runCli(['command' => 'close', 'id' => 'T-001', '--reason' => $reason]);
+        [$exit, $output] = $this->runCli(['command' => 'close', 'id' => 'T-001', '--direct' => true, '--reason' => $reason]);
         self::assertSame(1, $exit, $output);
         self::assertSame($before, $this->tree());
         [$exit, $output] = $this->runCli([
-            'command' => 'close', 'id' => 'T-001', '--reason' => $reason, '--force' => true, '--json' => true,
+            'command' => 'close', 'id' => 'T-001', '--direct' => true, '--reason' => $reason, '--force' => true, '--json' => true,
         ]);
         self::assertSame(0, $exit, $output);
         self::assertFalse(json_decode($output, true, flags: JSON_THROW_ON_ERROR)['verified']);
@@ -295,7 +295,7 @@ final class LifecycleCommandTest extends WorkflowTestCase
         $item = $this->store->load('T-001');
         $item->status = Status::Done;
         file_put_contents($this->store->itemPath('T-001'), FrontMatter::render($item->toArray(), $item->body));
-        [$exit, $output] = $this->runCli(['command' => 'close', 'id' => 'T-001', '--reason' => 'Historical note.']);
+        [$exit, $output] = $this->runCli(['command' => 'close', 'id' => 'T-001', '--direct' => true, '--reason' => 'Historical note.']);
         self::assertSame(0, $exit, $output);
         self::assertStringContainsString('existing completed history; no new verification', $output);
         self::assertStringNotContainsString('forced', $output);
@@ -312,7 +312,7 @@ final class LifecycleCommandTest extends WorkflowTestCase
         ], '');
         file_put_contents($this->store->itemPath('T-090'), $raw);
         $this->verify();
-        [$exit, $output] = $this->runCli(['command' => 'close', 'id' => 'T-001']);
+        [$exit, $output] = $this->runCli(['command' => 'close', 'id' => 'T-001', '--direct' => true, '--reason' => 'test setup']);
         self::assertSame(0, $exit, $output);
         self::assertStringContainsString('child status was not fully checked', $output);
         self::assertTrue(ItemLifecycle::hasCurrentVerification($this->store->load('T-001')));

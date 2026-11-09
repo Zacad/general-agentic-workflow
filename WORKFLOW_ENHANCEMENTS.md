@@ -30,8 +30,11 @@ workflow log T-001 "Need orchestrator feedback on design approach"
 workflow set T-001 status=in-progress
 workflow log T-001 "Addressed PR comments, ready for final verification"
 
-# Or close directly if no further work needed
-workflow close T-001 --reason "Review completed, all feedback addressed"
+# Close from review only on the user's acceptance or the named external gate
+workflow close T-001 --confirmation "PR merged, pipeline green"
+
+# No review applies (rare): close directly with a recorded reason
+workflow close T-001 --direct --reason "Internal note, nothing external to wait for"
 ```
 
 ### Status Display

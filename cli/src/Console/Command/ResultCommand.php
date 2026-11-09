@@ -104,7 +104,7 @@ final class ResultCommand extends BaseCommand
         }
         if ($role === 'verifier' && $status === 'done') {
             $output->writeln(sprintf(
-                'Verifier proof recorded — it does not close the item: workflow close %s, or hold for review with workflow set %s status=review and workflow log %s "what is pending".',
+                'Verifier proof recorded — it does not close the item. Hold it: workflow set %s status=review and workflow log %s "what is pending". Close only on the user\'s acceptance or the named gate passing: workflow close %s --confirmation "…".',
                 $id, $id, $id,
             ));
         }

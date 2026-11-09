@@ -8,6 +8,7 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Workflow\Domain\Kind;
 use Workflow\Domain\Status;
 use Workflow\Domain\WorkflowException;
 use Workflow\Support\Clock;
@@ -26,6 +27,8 @@ final class CloseCommand extends BaseCommand
             ->addOption('status', null, InputOption::VALUE_REQUIRED, 'done or cancelled.', 'done')
             ->addOption('reason', null, InputOption::VALUE_REQUIRED, 'Reason for cancellation or closure.')
             ->addOption('force', null, InputOption::VALUE_NONE, 'Close done without a verifier receipt.')
+            ->addOption('confirmation', null, InputOption::VALUE_REQUIRED, 'Closing a task/subtask from review: the user\'s literal acceptance words, or the named external gate that passed.')
+            ->addOption('direct', null, InputOption::VALUE_NONE, 'Close a task/subtask done without a review hold; requires --reason.')
             ->addOption('json', null, InputOption::VALUE_NONE, 'Emit JSON.');
     }
 
@@ -43,8 +46,26 @@ final class CloseCommand extends BaseCommand
         $at = Clock::now();
         $store = $this->store($input);
         $force = (bool) $input->getOption('force');
+        $confirmation = trim((string) $input->getOption('confirmation'));
+        $direct = (bool) $input->getOption('direct');
 
         try {
+            if ($status === Status::Done) {
+                $gated = $store->load($id);
+                if ($gated->kind !== Kind::Epic && $gated->status->isOpen()) {
+                    $gate = $this->reviewGate($id, $gated->status, $confirmation, $direct, $reason);
+                    if ($gate !== null) {
+                        $output->writeln('<error>'.$gate.'</error>');
+
+                        return self::FAILURE;
+                    }
+                    if ($gated->status === Status::Review) {
+                        $reason = trim('Accepted: '.$confirmation.($reason !== '' ? ' — '.$reason : ''));
+                    } else {
+                        $reason = 'Direct close without review: '.$reason;
+                    }
+                }
+            }
             $verified = $store->close($id, $status, $reason, $at, $force);
         } catch (WorkflowException $exception) {
             $output->writeln('<error>'.$exception->getMessage().'</error>');
@@ -102,5 +123,27 @@ final class CloseCommand extends BaseCommand
         }
 
         return self::SUCCESS;
+    }
+
+    private function reviewGate(string $id, Status $current, string $confirmation, bool $direct, string $reason): ?string
+    {
+        if ($current === Status::Review) {
+            return $confirmation === '' ? sprintf(
+                '%s is in review: close needs --confirmation with the user\'s literal acceptance or the external gate that passed. Review findings: workflow set %s status=in-progress.',
+                $id,
+                $id,
+            ) : null;
+        }
+        if ($direct) {
+            return $reason === '' ? '--direct needs --reason naming why no review hold applies.' : null;
+        }
+
+        return sprintf(
+            '%s is %s, not review: hold it with workflow set %s status=review and workflow log %s "what is pending", then close with --confirmation once the user accepts or the gate passes. No review applies: add --direct --reason "why".',
+            $id,
+            $current->value,
+            $id,
+            $id,
+        );
     }
 }

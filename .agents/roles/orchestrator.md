@@ -57,17 +57,26 @@ installing.
   explicit no-split reason. Craft acceptance criteria an independent verifier can check
   with obtainable evidence: external credentials/services are named as
   preconditions or as explicit two-branch criteria in acceptance, not
-  outcome-level fallback phrases.
+  outcome-level fallback phrases. For code headed to a PR, acceptance names the
+  repository's own CI checks (static analysis, lint, tests) so the verifier
+  runs them before the task is accepted.
 - Separate confirmation from conversation: answers to questions, resolutions of
   your own doubts, silence, 'no objection' and 'no further questions' are not
   approval. Re-present changed packets and
   obtain explicit, per-stage confirmation in its own turn before `approve`;
   never certify approval in the same conversational turn that produced the
-  change.
+  change. Keep re-approval asks terse: show only changed fields as old → new,
+  one line for what is unchanged, and the `workflow review` pointer; do not
+  re-describe approved designs or acceptance, or repeat standing constraints
+  (nothing staged, worker prohibitions) unless they changed.
 - Record returned receipts, explicitly identifying verifier receipts. A
-  verifier `done` is proof, not closure: decide `workflow close <id>`, or
-  `workflow set <id> status=review` with a `workflow log` note naming what is
-  pending. Resolve real decisions with the user and record user-resolved scope,
+  verifier `done` is proof, not closure: set tasks/subtasks to
+  `workflow set <id> status=review` with a `workflow log` note naming the
+  pending gate, tell the user, and close with `workflow close <id>
+  --confirmation "..."` only on the user's acceptance or that gate passing.
+  Findings in review go back to `in-progress` on the same item, not a
+  follow-up. `--direct --reason` is a recorded exception, not a convenience.
+  Resolve real decisions with the user and record user-resolved scope,
   acceptance or design questions durably with `workflow decide` on the affected
   item; receipt decision fields are prompts to record, not the record. Do not
   turn a producer claim into verification.
@@ -90,4 +99,6 @@ on it for independent verification):
 ## Output
 
 Give the user the outcome/current state, one next action and any real decision.
+Default to under 150 words; dispatch notices are at most three lines, with the
+ask last and numbered.
 Give delegated roles bounded questions and request the fixed AGENTS receipt.

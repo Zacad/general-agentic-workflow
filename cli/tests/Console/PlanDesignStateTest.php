@@ -291,7 +291,7 @@ final class PlanDesignStateTest extends WorkflowTestCase
     public function testCompletedMaterialEditsAndReopeningUseSharedFollowUpRefusal(string $command, string $content, array $flags): void
     {
         $this->verify();
-        $this->succeed(['command' => 'close', 'id' => 'T-001']);
+        $this->succeed(['command' => 'close', 'id' => 'T-001', '--direct' => true, '--reason' => 'test setup']);
         $before = $this->snapshot();
 
         [$exit, $output] = $this->runCli(['command' => $command, 'id' => 'T-001', '--text' => $content] + $flags);
@@ -409,7 +409,7 @@ final class PlanDesignStateTest extends WorkflowTestCase
     public function testDesignApproveOnDoneUsesTheSharedFollowUpRefusal(): void
     {
         $this->verify();
-        $this->succeed(['command' => 'close', 'id' => 'T-001']);
+        $this->succeed(['command' => 'close', 'id' => 'T-001', '--direct' => true, '--reason' => 'test setup']);
         $before = $this->snapshot();
 
         [$exit, $output] = $this->runCli([
@@ -437,7 +437,7 @@ final class PlanDesignStateTest extends WorkflowTestCase
     public function testUnchangedCompletedContentWithPhaseOnlyIsNotANewHistoryGate(string $command): void
     {
         $this->verify();
-        $this->succeed(['command' => 'close', 'id' => 'T-001']);
+        $this->succeed(['command' => 'close', 'id' => 'T-001', '--direct' => true, '--reason' => 'test setup']);
         $before = $this->store->load('T-001');
         $this->succeed([
             'command' => $command, 'id' => 'T-001', '--text' => 'Original '.ucfirst($command), '--phase' => 'plan',
