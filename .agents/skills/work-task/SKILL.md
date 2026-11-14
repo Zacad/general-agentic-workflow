@@ -28,8 +28,8 @@ a design worker reads the full item via `workflow show <id>`), and root
    orchestrator records it with `workflow design <id> --file ...` (no `--approve`
    yet) and dispatches an independent design verifier
    (`workflow brief <id> --for verifier`). Only after a passing design
-   verification does the orchestrator present the design to the user; on the
-   user's approval it re-records with `workflow design <id> --approve` in the
+   verification does the orchestrator obtain approval under the applicable root
+   AGENTS branch; it re-records with `workflow design <id> --approve` in the
    same mutation. The CLI refuses the implementation worker packet without a
    current design approval, and a material design change stales it (re-present,
    re-approve). If evidence is insufficient or the task is too broad, the design
@@ -45,8 +45,9 @@ a design worker reads the full item via `workflow show <id>`), and root
    (`workflow result <id> --role verifier --status done`), then in a separate
    call hold the item: `workflow set <id> status=review` plus `workflow log
    <id> "what is pending"` (PR/CI, deployment check, user acceptance), and tell
-   the user. Close with `workflow close <id> --confirmation "..."` only on the
-   user's acceptance or the named gate passing; the CLI refuses `close` on a
+   the user. In human mode close with `workflow close <id> --confirmation "..."` only on the
+   user's acceptance or the named gate passing; in an applicable autonomous run
+   use run-linked acceptance under root AGENTS; the CLI refuses `close` on a
    task/subtask outside `review` unless `--direct --reason "..."` records why no
    review applies. Review feedback returns the item to `in-progress` for rework
    and re-verification on the same item, not a follow-up.

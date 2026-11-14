@@ -13,7 +13,7 @@ final class Item
         'id', 'kind', 'parent', 'title', 'status', 'phase', 'priority',
         'depends_on', 'owns', 'artifacts', 'approval', 'design_approval',
         'last_result', 'verified_at', 'created', 'updated', 'outcome', 'scope',
-        'acceptance', 'last_approved_scope',
+        'acceptance', 'last_approved_scope', 'automated_events',
     ];
 
     /**
@@ -60,6 +60,9 @@ final class Item
      */
     public ?Approval $designApproval = null;
 
+    /** Null means the field was absent on a legacy item. */
+    public ?array $automatedEvents = null;
+
     /**
      * @param array<string, mixed> $data
      */
@@ -88,6 +91,10 @@ final class Item
         $scope = is_array($data['scope'] ?? null) ? $data['scope'] : [];
         $approval = is_array($data['approval'] ?? null) ? Approval::fromArray($data['approval']) : null;
         $designApproval = is_array($data['design_approval'] ?? null) ? Approval::fromArray($data['design_approval']) : null;
+        if (($approval?->provenance !== null && $approval->hashKey !== 'scope_hash')
+            || ($designApproval?->provenance !== null && $designApproval->hashKey !== 'design_hash')) {
+            throw new InvalidItemException('Automated approval has the wrong hash key.');
+        }
         $lastResult = is_array($data['last_result'] ?? null) ? $data['last_result'] : null;
         $lastApprovedScope = self::lastApprovedScope($data['last_approved_scope'] ?? null);
 
@@ -116,6 +123,9 @@ final class Item
             lastApprovedScope: $lastApprovedScope,
         );
         $item->designApproval = $designApproval;
+        if (array_key_exists('automated_events', $data)) {
+            $item->automatedEvents = AutomatedEvent::validate($data['automated_events']);
+        }
 
         return $item;
     }
@@ -151,6 +161,9 @@ final class Item
             'last_approved_scope' => $this->lastApprovedScope,
         ];
 
+        if ($this->automatedEvents !== null) {
+            $known['automated_events'] = AutomatedEvent::validate($this->automatedEvents);
+        }
         return array_merge($this->extra, $known);
     }
 

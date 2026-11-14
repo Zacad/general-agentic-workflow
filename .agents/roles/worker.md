@@ -27,7 +27,7 @@ route 2).
 - Write the design to an artifact under the item's `outputs/` and return it with
   the fixed receipt. Do not mutate the item record or approval and do not approve
   your own design: the orchestrator records it, a separate verifier checks it,
-  and the user approves it before any implementation.
+  and it is approved under the applicable root AGENTS branch before implementation.
 - If evidence is insufficient, return `needs-decision` naming the bounded
   exploration you need. If the task is too broad or needs a scope change, return
   `needs-decision` with a proposed split or change — the orchestrator frames

@@ -38,9 +38,15 @@ worker: plain `brief ID` is unsafe for independent verification.
 
 ## Mutations and derived output
 
+Human confirmation examples in this table apply to human-reviewed mode. For an
+explicitly authorized per-run exception, first follow root `AGENTS.md` and
+`docs/autonomous-runs.md`; run provenance never authenticates consent or roles.
+
 | Command | Contract |
 | --- | --- |
 | `init [--name NAME]` | Add missing project templates/layout; prints the fill moments (PRD before the first epic's approval, Architecture at epic design). |
+| `run create --authorize-autonomous --goal G --criterion C --action A --root ID --expires-at UTC --max-roots N` | Create a run for existing root anchors; repeat criterion, action and root. Inspect `run show ID --json` and `authority_usable`; CLI ancestry is not semantic authorization. Actions: `scope-approve`, `design-approve`, `decide`, `accept-review`. |
+| `run show ID [--json]` / `run report ID --status S --reason R --recovery P` / `run resume ID --recovery P` / `run revoke ID --reason R` | Inspect, record a blocked/interrupted/limit-exceeded pause, record reconciliation, or revoke. Resume does not execute work or validate reconciliation; expiry and revocation do not cancel in-flight work. |
 | `new TITLE [--kind task] [--parent E-001]` | Draft item in phase `plan` by default; repeat `--owns PATH` / `--depends ID`; parentless tasks use `--standalone-reason TEXT`. |
 | `plan ID --file F` or `--text S` | Replace Plan; optional `--phase PHASE` and/or `--start`. |
 | `design ID --file F` or `--text S` | Replace Design; same optional state flags; `--approve [--by B] [--confirmation Q]` also records design approval (at, by, design_hash, confirmation) of the just-written Design in the same atomic mutation — tasks/subtasks only, refused on done items. `validate` warns when a design approval record lacks a confirmation quote. |
@@ -53,6 +59,15 @@ worker: plain `brief ID` is unsafe for independent verification.
 | `migrate [--dry-run] [--force]` | Migrate the flat to hierarchical item layout (both layouts are fully supported; conversion is optional, recommended for navigation with many items). `--dry-run` shows the migration plan without executing. Creates backup at `.workflow/items.backup/` before migration; roll back by restoring it (`rm -rf .workflow/items && mv .workflow/items.backup .workflow/items`). Migration preserves all item data, relationships and history, and skips malformed items gracefully. |
 | `board` | Regenerate derived `.workflow/board.html`, not a read-only command. |
 | `install DIR [--name NAME] [--force]` | Scaffold; clean projects get `opencode.json` created automatically, existing configs get per-agent merge guidance, and the target-scoped agent catalog is verified when the `opencode` CLI is on `PATH` (advisory). Preservation/manual-merge contract in `docs/install.md`. |
+
+With matching usable run authority, `approve ID --run RUN [--delta]`,
+`decide ID TEXT --run RUN`, `design ID --file F --approve --run RUN`, and
+`close ID --reason TEXT --run RUN` record automated provenance. Run-linked
+design approval excludes `--phase`, `--start`, `--by`, `--confirmation`;
+run-linked close requires review and current proof and excludes `--confirmation`,
+`--force`, `--direct`. It does not close epics. Independent design, outcome
+and integrated goal verification remain required. Inspect exact content and
+authority rather than treating a flag as permission.
 
 A new item starts in `plan`; approving a draft moves it to `todo`. Plan/design
 require exactly one content source. Without flags they change only content,

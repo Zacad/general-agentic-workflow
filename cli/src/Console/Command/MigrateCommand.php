@@ -84,7 +84,13 @@ final class MigrateCommand extends BaseCommand
         }
 
         try {
-            $this->executeMigration($itemsDir, $plan);
+            $store->withLock(function () use ($itemsDir, $plan): void {
+                $current = $this->buildMigrationPlan($itemsDir, $this->detectFlatStructure($itemsDir));
+                if ($current !== $plan) {
+                    throw new WorkflowException('Item layout changed since the migration plan; retry.');
+                }
+                $this->executeMigration($itemsDir, $plan);
+            });
         } catch (WorkflowException $exception) {
             $output->writeln('<error>Migration failed: '.$exception->getMessage().'</error>');
             $output->writeln('<error>Restore from backup: .workflow/items.backup/</error>');

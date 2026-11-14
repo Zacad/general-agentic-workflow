@@ -10,6 +10,7 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Workflow\Domain\Item;
 use Workflow\Support\Text;
+use Workflow\Support\ScopeOutput;
 
 final class BriefCommand extends BaseCommand
 {
@@ -106,6 +107,8 @@ final class BriefCommand extends BaseCommand
             'role' => $role,
             'approval' => $this->approvalLabel($item),
             'design_approval' => $this->designApprovalLabel($item),
+            'approval_provenance' => $item->approval?->provenance,
+            'design_approval_provenance' => $item->designApproval?->provenance,
             'dependencies' => $this->dependencyLines($item, $items),
             'upstream_artifacts' => $this->upstreamArtifacts($item, $items),
             'plan' => $item->section('Plan'),
@@ -117,6 +120,10 @@ final class BriefCommand extends BaseCommand
 
         if ($item->parent !== null) {
             $packet['parent_design_present'] = trim($parentDesign) !== '';
+        }
+        $events = array_values(array_filter($item->automatedEvents ?? [], static fn (array $event): bool => $event['action'] === 'decide'));
+        if ($events !== []) {
+            $packet['automated_decisions'] = $events;
         }
 
         if ($role === 'explorer') {
@@ -156,7 +163,7 @@ final class BriefCommand extends BaseCommand
         $plan = $packet['plan'];
         $design = $packet['design'];
 
-        $output->writeln(sprintf('%s · %s', $item['id'], $item['title']));
+        $output->writeln(sprintf('%s · %s', $item['id'], $item['title']), OutputInterface::OUTPUT_RAW);
         $output->writeln(sprintf(
             'kind: %s · status: %s · phase: %s · priority: %d · role: %s',
             $item['kind'],
@@ -164,26 +171,32 @@ final class BriefCommand extends BaseCommand
             $item['phase'],
             $item['priority'],
             $role,
-        ));
+        ), OutputInterface::OUTPUT_RAW);
         $output->writeln(sprintf(
             'parent: %s · approval: %s · design_approval: %s',
             $item['parent'] ?? 'none',
             $packet['approval'],
             $packet['design_approval'],
-        ));
+        ), OutputInterface::OUTPUT_RAW);
+        foreach (['approval', 'design_approval'] as $name) {
+            if ($packet[$name] !== 'none') {
+                $source = $packet[$name.'_provenance'];
+                $output->writeln($name.' source: '.($source === null ? 'legacy/unspecified' : 'automated run '.$source['run_id']), OutputInterface::OUTPUT_RAW);
+            }
+        }
         $output->writeln(sprintf(
             'depends: %s · owns: %s',
             Text::inlineList($packet['dependencies']),
             Text::inlineList($packet['deliverable_paths']),
-        ));
-        $output->writeln('outcome: '.($item['outcome'] !== '' ? $item['outcome'] : '(not set)'));
-        $output->writeln('scope in: '.Text::inlineList($item['scope']['in']));
-        $output->writeln('scope out: '.Text::inlineList($item['scope']['out']));
+        ), OutputInterface::OUTPUT_RAW);
+        $output->writeln('outcome: '.($item['outcome'] !== '' ? $item['outcome'] : '(not set)'), OutputInterface::OUTPUT_RAW);
+        $output->writeln('scope in: '.Text::inlineList($item['scope']['in']), OutputInterface::OUTPUT_RAW);
+        $output->writeln('scope out: '.Text::inlineList($item['scope']['out']), OutputInterface::OUTPUT_RAW);
 
         if ($item['acceptance'] !== []) {
             $output->writeln('acceptance:');
             foreach ($item['acceptance'] as $index => $criterion) {
-                $output->writeln(sprintf('  %d. %s', $index + 1, $criterion));
+                $output->writeln(sprintf('  %d. %s', $index + 1, $criterion), OutputInterface::OUTPUT_RAW);
             }
         } else {
             $output->writeln('acceptance: (not set)');
@@ -194,7 +207,7 @@ final class BriefCommand extends BaseCommand
             $output->writeln('  (not written yet)');
         } else {
             foreach (preg_split('/\R/u', $plan) ?: [] as $line) {
-                $output->writeln('  '.$line);
+                $output->writeln('  '.$line, OutputInterface::OUTPUT_RAW);
             }
         }
 
@@ -207,7 +220,7 @@ final class BriefCommand extends BaseCommand
         if ($packet['parent_design'] !== '') {
             $output->writeln('parent design:');
             foreach (preg_split('/\R/u', $packet['parent_design']) ?: [] as $line) {
-                $output->writeln('  '.$line);
+                $output->writeln('  '.$line, OutputInterface::OUTPUT_RAW);
             }
         } elseif ($item['parent'] !== null) {
             $output->writeln('<comment>warning: parent '.$item['parent'].' has no recorded Design; the canonical scope map is missing</comment>');
@@ -218,7 +231,7 @@ final class BriefCommand extends BaseCommand
             $output->writeln('  (not written yet)');
         } else {
             foreach (preg_split('/\R/u', $design) ?: [] as $line) {
-                $output->writeln('  '.$line);
+                $output->writeln('  '.$line, OutputInterface::OUTPUT_RAW);
             }
         }
 
@@ -235,21 +248,24 @@ final class BriefCommand extends BaseCommand
         if ($item['artifacts'] !== []) {
             $output->writeln('artifacts:');
             foreach ($item['artifacts'] as $artifact) {
-                $output->writeln('  - '.$artifact);
+                $output->writeln('  - '.$artifact, OutputInterface::OUTPUT_RAW);
             }
         }
 
         if ($packet['decisions'] !== '') {
             $output->writeln('decisions:');
             foreach (preg_split('/\R/u', $packet['decisions']) ?: [] as $line) {
-                $output->writeln('  '.$line);
+                $output->writeln('  '.$line, OutputInterface::OUTPUT_RAW);
             }
+        }
+        foreach ($packet['automated_decisions'] ?? [] as $event) {
+            $output->writeln('automated decision: '.ScopeOutput::literal($event), OutputInterface::OUTPUT_RAW);
         }
 
         if ($packet['upstream_artifacts'] !== []) {
             $output->writeln('upstream artifacts:');
             foreach ($packet['upstream_artifacts'] as $id => $paths) {
-                $output->writeln(sprintf('  %s: %s', $id, implode(', ', $paths)));
+                $output->writeln(sprintf('  %s: %s', $id, implode(', ', $paths)), OutputInterface::OUTPUT_RAW);
             }
         }
 
@@ -264,7 +280,7 @@ final class BriefCommand extends BaseCommand
             if (isset($receipt['decision'])) {
                 $line .= ' · decision: '.$receipt['decision'];
             }
-            $output->writeln($line);
+            $output->writeln($line, OutputInterface::OUTPUT_RAW);
         }
 
         if ($role === 'verifier') {

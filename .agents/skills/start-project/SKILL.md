@@ -22,7 +22,7 @@ resume with `workflow status` and a role brief instead.
 2. Run the architecture method, route 1 — architecture design
    (`.agents/skills/code-architecture/SKILL.md`): drivers and
    characteristics, compared approaches, one recommendation with limits.
-   Discuss it with the user, then record the durable decisions in
+   Resolve material uncertainties with the user as needed, then record the durable decisions in
    `.workflow/Architecture.md`.
 3. Frame the first epic with `.agents/skills/decompose-work/SKILL.md`:
    outcome, scope, acceptance, dependencies, owned paths and discovery plan.

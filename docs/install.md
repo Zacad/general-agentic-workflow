@@ -29,9 +29,11 @@ Root `AGENTS.md` is marker-delimited. `install --force` refreshes only the
 block between `<!-- BEGIN KIT WORKFLOW RULES ... -->` and
 `<!-- END KIT WORKFLOW RULES -->`; everything you write **outside** those
 markers — before the block or after it — is preserved untouched. An `AGENTS.md`
-without the markers (a hand-authored host contract) is never rewritten; the
-installer reports it for a reviewed manual merge instead. A fresh install copies
-the file whole, markers included.
+with missing or reversed markers is preserved for a reviewed manual merge. The
+installer does not detect every malformed layout (for example duplicate marker
+pairs): inspect markers before using `--force`, and do not use it on ambiguous
+markers; perform a reviewed manual merge instead. A fresh install copies the
+file whole, markers included.
 
 `--force` deliberately refreshes ordinary kit-relative files under `.agents/`,
 `docs/` and `cli/`. Review/back up external customizations first. It does not
@@ -48,7 +50,20 @@ workflow rules from the kit's `AGENTS.md` into it and review conflicts. Every
 installed role explicitly loads that root file, even when used separately. If it
 is absent, incomplete or conflicting, the role must surface the need for a
 reviewed manual merge, not assume the host rules were replaced. Do not dispatch
-workflow roles until this merge is reviewed.
+workflow roles until this merge is reviewed. Existing installations with
+conflicting host rules stay human-reviewed until the merge is authorized and
+reviewed; installation does not grant permissions or enable autonomous runs.
+See [autonomous runs](autonomous-runs.md).
+
+Browser evidence uses the installed [browser testing procedure](browser-testing.md).
+A fresh install includes the root rule, verifier entry point and guide. An
+add-only upgrade preserves existing files, so old rules or guidance may remain
+stale; review and update all three together, using a reviewed force refresh or
+manual merge as appropriate. Existing `README.md` is preserved and is not the
+operational entry point. Marker-free, malformed or conflicting host contracts
+need a reviewed manual merge before dispatch; do not overwrite host authority.
+Installation and agent catalog checks prove neither browser availability nor
+permission for a particular role, command or side effects.
 
 ## Bootstrap the target
 

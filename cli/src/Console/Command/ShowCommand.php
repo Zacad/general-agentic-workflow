@@ -33,7 +33,7 @@ final class ShowCommand extends BaseCommand
         $section = (string) $input->getOption('section');
         if ($section !== '') {
             $content = $item->section($section);
-            $output->writeln($content === '' ? sprintf('(no "%s" section, or it is empty)', $section) : $content);
+            $output->writeln($content === '' ? sprintf('(no "%s" section, or it is empty)', $section) : $content, OutputInterface::OUTPUT_RAW);
 
             return self::SUCCESS;
         }
@@ -45,7 +45,7 @@ final class ShowCommand extends BaseCommand
         }
 
         $raw = file_get_contents($store->itemPath($id));
-        $output->write($raw === false ? '' : $raw);
+        $output->write($raw === false ? '' : $raw, false, OutputInterface::OUTPUT_RAW);
 
         return self::SUCCESS;
     }

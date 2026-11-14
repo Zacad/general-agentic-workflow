@@ -11,6 +11,10 @@ skills supply methods rather than another protocol. See the
 [command contract](.agents/skills/workflow-cli/SKILL.md) and
 [installation guide](docs/install.md).
 
+For browser-rendered verification, see [browser testing](docs/browser-testing.md).
+A missing desktop browser tool does not grant permission for a local browser;
+actual denials and unresolved authority remain blockers.
+
 ## Quickstart
 
 Requires **PHP >=8.4.1, Composer 2 and iconv**. From `cli/`, run
@@ -120,9 +124,17 @@ Commands find the nearest `.workflow/`; `--project /absolute/path` selects a
 different root. This kit's own records already exist: do not run the example
 against them. The CLI does not authenticate role independence or human consent.
 
-Scaffolding does not register agents. OpenCode registration is a required,
-manual and unverified follow-up; see the [installation guide](docs/install.md)
-for clean-project copy, existing-config merge, reload and catalog checks.
+Clean installs create OpenCode registration; existing host configuration is
+preserved and requires a reviewed manual merge. Catalog checks are advisory, not
+proof of agent startup. See the [installation guide](docs/install.md).
+
+Human review is the default. An explicitly authorized per-run goal may use the
+[autonomous run protocol](docs/autonomous-runs.md), subject to host permissions
+and independent verification; installation alone never enables it. A usable,
+unexpired run includes ordinary public, non-chargeable network access necessary
+for its goal without extra network-only approval, within its boundaries and
+limits. Potential charges, destructive actions, publication, deployment and
+private accounts remain gated; stricter host and project rules still apply.
 
 ## Records and limits
 

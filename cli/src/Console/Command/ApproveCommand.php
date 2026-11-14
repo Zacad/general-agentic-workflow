@@ -11,6 +11,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Workflow\Domain\Approval;
 use Workflow\Domain\Item;
 use Workflow\Domain\Status;
+use Workflow\Domain\WorkflowException;
 use Workflow\Support\Clock;
 use Workflow\Support\ScopeOutput;
 
@@ -28,6 +29,7 @@ final class ApproveCommand extends BaseCommand
             ->addOption('by', null, InputOption::VALUE_REQUIRED, 'Who approved; "unspecified" when omitted.')
             ->addOption('confirmation', null, InputOption::VALUE_REQUIRED, 'Recorded user confirmation quote for this approval.')
             ->addOption('delta', null, InputOption::VALUE_NONE, 'Delta approval: approve only non-material changes.')
+            ->addOption('run', null, InputOption::VALUE_REQUIRED, 'Authorize an automated approval using this run ID.')
             ->addOption('json', null, InputOption::VALUE_NONE, 'Emit JSON.');
     }
 
@@ -44,20 +46,23 @@ final class ApproveCommand extends BaseCommand
         $at = Clock::now();
 
         $store = $this->store($input);
-        $item = $store->load($id);
-
-        // Check for material changes if delta approval
-        if ($isDelta) {
-            $detector = new \Workflow\Support\ChangeDetector();
-            $changes = $detector->detect($item, $item->lastApprovedScope);
-            if ($changes['has_material']) {
-                $output->writeln('<error>Cannot use --delta: material changes detected. Run "workflow change '.$id.'" for details.</error>');
-
-                return self::INVALID;
-            }
+        $run = $input->getOption('run');
+        if ($run !== null && ($input->getOption('by') !== null || $input->getOption('confirmation') !== null)) {
+            $output->writeln('<error>Automated approval cannot use --by or --confirmation.</error>');
+            return self::INVALID;
         }
-
-        $result = $store->mutate($id, function (Item $item) use ($by, $confirmation, $at): array {
+        try {
+        if ($run !== null) {
+            $approved = $store->approveScopeForRun($id, (string) $run, $isDelta);
+            $item = $approved['item'];
+            $result = ['id' => $item->id, 'by' => 'automated', 'scope_hash' => $item->approval->hash,
+                'status' => $item->status->value, ...ScopeOutput::scope($item), 'owns' => $item->owns,
+                'provenance' => $item->approval->provenance];
+        } else {
+        $result = $store->mutate($id, function (Item $item) use ($by, $confirmation, $at, $isDelta, $id): array {
+            if ($isDelta && (new \Workflow\Support\ChangeDetector())->detect($item, $item->lastApprovedScope)['has_material']) {
+                throw new WorkflowException('Cannot use --delta: material changes detected. Run "workflow change '.$id.'" for details.');
+            }
             $hash = $item->scopeHash();
             $item->approval = new Approval($at, $by, $hash, $confirmation !== '' ? $confirmation : null);
             $item->lastApprovedScope = $item->snapshotScope();
@@ -79,6 +84,11 @@ final class ApproveCommand extends BaseCommand
 
             return $result;
         });
+        }
+        } catch (WorkflowException $exception) {
+            $output->writeln('Error: '.ScopeOutput::literal($exception->getMessage()), OutputInterface::OUTPUT_RAW);
+            return self::INVALID;
+        }
         $this->refreshBoard($input, $output);
 
         if ($input->getOption('json')) {
@@ -97,13 +107,13 @@ final class ApproveCommand extends BaseCommand
         ScopeOutput::write($output, $result, $result['owns']);
         $output->writeln('hash: '.$result['scope_hash']);
         $output->writeln('status: '.$result['status']);
-        $output->writeln(sprintf(
-            'Recorded approval by %s at %s — this certifies an explicit user confirmation of hash %s; if confirmation was implicit, record it via workflow log %s.',
-            ScopeOutput::literal($result['by']),
-            $at,
-            $result['scope_hash'],
-            $result['id'],
-        ), OutputInterface::OUTPUT_RAW);
+        if ($run !== null) {
+            $output->writeln('Automated approval by run '.ScopeOutput::literal($run).'.', OutputInterface::OUTPUT_RAW);
+        } elseif ($confirmation !== '') {
+            $output->writeln(sprintf('Recorded approval by %s at %s — this certifies an explicit user confirmation of hash %s; if confirmation was implicit, record it via workflow log %s.', ScopeOutput::literal($by), $at, $result['scope_hash'], $id), OutputInterface::OUTPUT_RAW);
+        } else {
+            $output->writeln('Approval source is legacy/unspecified; no confirmation quote recorded.', OutputInterface::OUTPUT_RAW);
+        }
 
         return self::SUCCESS;
     }

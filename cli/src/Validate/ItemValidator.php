@@ -11,6 +11,7 @@ use Workflow\Domain\ItemLifecycle;
 use Workflow\Domain\Kind;
 use Workflow\Read\ProjectDocuments;
 use Workflow\Store\ItemStore;
+use Workflow\Store\RunStore;
 
 final class ItemValidator
 {
@@ -74,6 +75,15 @@ final class ItemValidator
         $result->warnings = array_merge($result->warnings, $structure->warnings);
         $this->validateApprovals($items, $result);
         $this->validateDesignApprovals($items, $result);
+        foreach ($items as $item) {
+            foreach ($item->automatedEvents ?? [] as $event) {
+                try {
+                    (new RunStore($this->store->root()))->load($event['run_id']);
+                } catch (\Throwable) {
+                    $result->warning(sprintf('%s: automated event %s references an unreadable or invalid run %s.', $item->id, $event['id'], $event['run_id']));
+                }
+            }
+        }
         $this->validatePlans($items, $result);
         $this->validateDesigns($items, $result);
         $this->validateParentDesigns($items, $result);
@@ -130,12 +140,14 @@ final class ItemValidator
             }
 
             if ($item->approval !== null && $item->status->isOpen()
+                && $item->approval->provenance === null
                 && trim((string) ($item->approval->confirmation ?? '')) === '') {
                 $result->warning(sprintf(
-                    '%s: approval has no recorded confirmation quote — approval must be explicit user confirmation.',
+                    '%s: approval has no recorded confirmation quote; source is legacy/unspecified.',
                     $item->id,
                 ));
             }
+            $this->validateApprovalRun($item->id, $item->approval, $result);
 
             if ($item->status->value === 'done' && $item->verifiedAt === null) {
                 $result->warning(sprintf('%s: done without a verifier receipt for the current target.', $item->id));
@@ -179,6 +191,7 @@ final class ItemValidator
     private function validateDesignApprovals(array $items, ValidationResult $result): void
     {
         foreach ($items as $item) {
+            $this->validateApprovalRun($item->id, $item->designApproval, $result);
             if (!in_array($item->kind, [Kind::Task, Kind::Subtask], true) || $item->status->value === 'done') {
                 continue;
             }
@@ -198,12 +211,25 @@ final class ItemValidator
             }
 
             if ($item->designApproval !== null && $item->status->isOpen()
+                && $item->designApproval->provenance === null
                 && trim((string) ($item->designApproval->confirmation ?? '')) === '') {
                 $result->warning(sprintf(
-                    '%s: design approval has no recorded confirmation quote — approval must be explicit user confirmation.',
+                    '%s: design approval has no recorded confirmation quote; source is legacy/unspecified.',
                     $item->id,
                 ));
             }
+        }
+    }
+
+    private function validateApprovalRun(string $id, ?\Workflow\Domain\Approval $approval, ValidationResult $result): void
+    {
+        if ($approval?->provenance === null) {
+            return;
+        }
+        try {
+            (new RunStore($this->store->root()))->load($approval->provenance['run_id']);
+        } catch (\Throwable $exception) {
+            $result->warning(sprintf('%s: automated approval references an unreadable or invalid run %s.', $id, $approval->provenance['run_id']));
         }
     }
 

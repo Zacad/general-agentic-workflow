@@ -13,8 +13,10 @@ use Workflow\Domain\Item;
 use Workflow\Domain\Kind;
 use Workflow\Domain\Phase;
 use Workflow\Domain\Status;
+use Workflow\Domain\WorkflowException;
 use Workflow\Support\Clock;
 use Workflow\Store\ItemStore;
+use Workflow\Support\ScopeOutput;
 
 final class DesignCommand extends BaseCommand
 {
@@ -32,6 +34,7 @@ final class DesignCommand extends BaseCommand
             ->addOption('phase', null, InputOption::VALUE_REQUIRED, 'Also set phase: plan, explore, design, implement or verify.')
             ->addOption('start', null, InputOption::VALUE_NONE, 'Also set status to in-progress.')
             ->addOption('approve', null, InputOption::VALUE_NONE, 'Also record design approval of the just-written Design (tasks and subtasks only).')
+            ->addOption('run', null, InputOption::VALUE_REQUIRED, 'Authorize an automated design approval using this run ID.')
             ->addOption('by', null, InputOption::VALUE_REQUIRED, 'Who approved; "unspecified" when omitted.')
             ->addOption('confirmation', null, InputOption::VALUE_REQUIRED, 'Recorded user confirmation quote for this design approval.');
     }
@@ -49,13 +52,13 @@ final class DesignCommand extends BaseCommand
 
         if ($file !== null) {
             if (!is_file((string) $file)) {
-                $output->writeln(sprintf('<error>Design file not found: %s</error>', $file));
+                $output->writeln('Design file not found: '.ScopeOutput::literal((string) $file), OutputInterface::OUTPUT_RAW);
 
                 return self::INVALID;
             }
             $text = file_get_contents((string) $file);
             if ($text === false) {
-                $output->writeln(sprintf('<error>Cannot read design file: %s</error>', $file));
+                $output->writeln('Cannot read design file: '.ScopeOutput::literal((string) $file), OutputInterface::OUTPUT_RAW);
 
                 return self::INVALID;
             }
@@ -75,6 +78,24 @@ final class DesignCommand extends BaseCommand
         $content = trim((string) $text);
 
         $store = $this->store($input);
+        $run = $input->getOption('run');
+        if ($run !== null) {
+            if (!$approve || $phaseValue !== null || $start || $input->getOption('by') !== null || $input->getOption('confirmation') !== null) {
+                $output->writeln('<error>Automated design requires --approve and forbids --phase, --start, --by and --confirmation.</error>');
+                return self::INVALID;
+            }
+            try {
+                $result = $store->approveDesignForRun($id, (string) $run, (string) $text);
+            } catch (WorkflowException $exception) {
+                $output->writeln('Error: '.ScopeOutput::literal($exception->getMessage()), OutputInterface::OUTPUT_RAW);
+                return self::INVALID;
+            }
+            $output->writeln('Design updated for '.ScopeOutput::literal($id), OutputInterface::OUTPUT_RAW);
+            $output->writeln('hash: '.$result['approval']['design_hash'], OutputInterface::OUTPUT_RAW);
+            $output->writeln('Automated design approval by run '.ScopeOutput::literal($run).'.', OutputInterface::OUTPUT_RAW);
+            $this->refreshBoard($input, $output);
+            return self::SUCCESS;
+        }
         // Validation before mutation: both refusals leave record and board
         // bytes untouched.
         if ($approve) {
@@ -105,6 +126,9 @@ final class DesignCommand extends BaseCommand
         $at = Clock::now();
 
         $hash = $store->mutate($id, function (Item $item) use ($content, $phase, $start, $approve, $by, $confirmation, $at): string {
+            if ($approve && (!in_array($item->kind, [Kind::Task, Kind::Subtask], true) || $item->status === Status::Done)) {
+                throw new WorkflowException('Design approval requires a task or subtask that is not completed history.');
+            }
             $item->body = ItemStore::replaceSection($item->body, 'Design', $content);
             if ($phase !== null) {
                 $item->phase = $phase;
@@ -129,13 +153,9 @@ final class DesignCommand extends BaseCommand
         $output->writeln(sprintf('Design updated for %s', $id));
         if ($approve) {
             $output->writeln('hash: '.$hash);
-            $output->writeln(sprintf(
-                'Recorded design approval by %s at %s — this certifies an explicit user confirmation of design hash %s; if confirmation was implicit, record it via workflow log %s.',
-                $by,
-                $at,
-                $hash,
-                $id,
-            ), OutputInterface::OUTPUT_RAW);
+            $output->writeln($confirmation !== ''
+                ? sprintf('Recorded design approval by %s at %s — this certifies an explicit user confirmation of design hash %s; if confirmation was implicit, record it via workflow log %s.', ScopeOutput::literal($by), $at, $hash, $id)
+                : 'Design approval source is legacy/unspecified; no confirmation quote recorded.', OutputInterface::OUTPUT_RAW);
         }
         $this->refreshBoard($input, $output);
 

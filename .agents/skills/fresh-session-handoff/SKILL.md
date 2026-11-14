@@ -9,7 +9,9 @@ description: Resume or hand off work from the records alone, with current author
 
 ## Procedure
 
-1. Load the canonical root rules; surface missing/conflicting host merges.
+1. Load the canonical root rules; surface missing/conflicting host merges. For
+   an autonomous run, follow its reconciliation and authority checks in AGENTS
+   and `docs/autonomous-runs.md` before resuming.
    Run `workflow status`, then `ready` only if choosing work is unclear.
 2. Run the selected item's explicit role brief. Confirm identity, scope approval,
    dependencies/ownership, Plan/Design, parent Design and relevant artifact paths.

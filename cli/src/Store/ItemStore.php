@@ -7,6 +7,8 @@ namespace Workflow\Store;
 use Symfony\Component\Lock\LockFactory;
 use Symfony\Component\Lock\Store\FlockStore;
 use Workflow\Domain\FrontMatter;
+use Workflow\Domain\Approval;
+use Workflow\Domain\AutomatedEvent;
 use Workflow\Domain\InvalidItemException;
 use Workflow\Domain\Item;
 use Workflow\Domain\ItemLifecycle;
@@ -14,6 +16,7 @@ use Workflow\Domain\Kind;
 use Workflow\Domain\Status;
 use Workflow\Domain\WorkflowException;
 use Workflow\Validate\StructureValidator;
+use Workflow\Support\ChangeDetector;
 
 final class ItemStore
 {
@@ -259,6 +262,184 @@ final class ItemStore
     }
 
     /**
+     * Record a scope approval under current run authority. No caller-supplied
+     * mutation is accepted here: the run grants this operation only.
+     *
+     * @return array<string, mixed> The committed approval and scope snapshot.
+     */
+    public function approveScopeForRun(string $id, string $runId, bool $delta = false): array
+    {
+        return $this->authorizedItemMutation($id, $runId, 'scope-approve', function (Item $item) use ($id, $runId, $delta): array {
+            if ($item->status === Status::Done) {
+                throw new WorkflowException($id.': completed work is historical; create an approved follow-up item.');
+            }
+            if ($delta && (new ChangeDetector())->detect($item, $item->lastApprovedScope)['has_material']) {
+                throw new WorkflowException('Cannot use --delta: material changes detected.');
+            }
+            $item->approval = new Approval(gmdate('c'), 'automated', $item->scopeHash(), null, 'scope_hash', ['kind' => 'automated', 'run_id' => $runId]);
+            $item->lastApprovedScope = $item->snapshotScope();
+            if ($item->status === Status::Draft) {
+                $item->status = Status::Todo;
+            }
+
+            return ['item' => $item, 'approval' => $item->approval->toArray()];
+        });
+    }
+
+    /** Replace exactly the Design section and approve the resulting hash. */
+    public function approveDesignForRun(string $id, string $runId, string $content): array
+    {
+        $content = str_replace(["\r\n", "\r"], "\n", $content);
+        if (preg_match('/^ {0,3}##(?!#)(?:[ \t]|$)/m', $content)) {
+            throw new WorkflowException('Design content must not contain top-level headings.');
+        }
+        return $this->authorizedItemMutation($id, $runId, 'design-approve', function (Item $item) use ($id, $runId, $content): array {
+            if (!in_array($item->kind, [Kind::Task, Kind::Subtask], true)
+                || !in_array($item->status, [Status::Draft, Status::Todo, Status::InProgress], true)
+                || !$item->isApproved()) {
+                throw new WorkflowException('Automated design approval requires an open task or subtask with current scope approval.');
+            }
+            $body = str_replace(["\r\n", "\r"], "\n", $item->body);
+            preg_match_all('/^ {0,3}##(?!#)(?:[ \t]|$).*$/m', $body, $headings);
+            $seen = [];
+            foreach ($headings[0] as $heading) {
+                if (!preg_match('/^##[ \t]+(Plan|Design|Decisions|Progress)[ \t]*$/', $heading, $match) || isset($seen[$match[1]])) {
+                    throw new WorkflowException('Ambiguous item section layout.');
+                }
+                $seen[$match[1]] = true;
+            }
+            $before = clone $item;
+            $before->body = $body;
+            $item->body = self::replaceSection($body, 'Design', trim($content));
+            foreach (['Plan', 'Decisions', 'Progress'] as $section) {
+                if ($before->section($section) !== $item->section($section)) {
+                    throw new WorkflowException('Design replacement would change another section.');
+                }
+            }
+            $item->designApproval = new Approval(gmdate('c'), 'automated', $item->designHash(), null, 'design_hash', ['kind' => 'automated', 'run_id' => $runId]);
+            $old = $before->toArray(); $new = $item->toArray();
+            unset($old['design_approval'], $new['design_approval']);
+            if ($old !== $new) {
+                throw new WorkflowException('Design replacement would change unrelated fields.');
+            }
+            return ['item' => $item, 'approval' => $item->designApproval->toArray()];
+        });
+    }
+
+    public function decideForRun(string $id, string $runId, string $text): array
+    {
+        return $this->authorizedItemMutation($id, $runId, 'decide', static function (Item $item) use ($runId, $text): array {
+            if ($item->status === Status::Done) {
+                throw new WorkflowException('Completed work is historical; create an approved follow-up item.');
+            }
+            $event = AutomatedEvent::create('decide', $runId, $text);
+            $item->automatedEvents ??= [];
+            $item->automatedEvents[] = $event;
+            return $event;
+        });
+    }
+
+    public function acceptReviewForRun(string $id, string $runId, string $text): array
+    {
+        return $this->authorizedItemMutation($id, $runId, 'accept-review', static function (Item $item) use ($runId, $text): array {
+            if (!in_array($item->kind, [Kind::Task, Kind::Subtask], true) || $item->status !== Status::Review
+                || !ItemLifecycle::hasCurrentVerification($item)) {
+                throw new WorkflowException('Automated acceptance requires a task or subtask in review with current verification.');
+            }
+            $event = AutomatedEvent::create('accept-review', $runId, $text);
+            $item->automatedEvents ??= [];
+            $item->automatedEvents[] = $event;
+            $item->status = Status::Done;
+            return $event;
+        });
+    }
+
+    /** Shared lock-held path; only fixed internal operations may supply a callback. */
+    private function authorizedItemMutation(string $id, string $runId, string $action, callable $change): mixed
+    {
+        return $this->withLock(function () use ($id, $runId, $action, $change): mixed {
+            [$path, $chain, $item] = $this->strictAncestry($id);
+            $runs = new RunStore($this->root);
+            $check = function () use ($runs, $runId, $id, $chain, $path, $action): void {
+                [$currentPath, $currentChain] = $this->strictAncestry($id);
+                if ($currentPath !== $path || $currentChain !== $chain) {
+                    throw new WorkflowException('Item ancestry changed during authorization.');
+                }
+                $runs->loadForUpdate($runId)->assertAuthorized($action, $currentChain, new \DateTimeImmutable('@'.time()));
+            };
+            $check();
+            $before = clone $item;
+            $result = $change($item);
+            if ($item->id !== $before->id || $item->kind !== $before->kind || $item->parent !== $before->parent) {
+                throw new WorkflowException('Run authority does not permit changing identity or ancestry.');
+            }
+            $eventIntent = in_array($action, ['decide', 'accept-review'], true) ? ['action' => $action, 'run_id' => $runId] : null;
+            $this->persist($item, $before, targetPath: $path, beforeRename: $check, eventIntent: $eventIntent);
+
+            return $result;
+        });
+    }
+
+    /**
+     * Resolve every ancestor by unique physical item path, not by inferred
+     * layout. Caller holds the project write lock.
+     * @return array{string, list<string>, Item}
+     */
+    private function strictAncestry(string $target): array
+    {
+        $id = $target;
+        $visited = [];
+        $childKind = null;
+        $targetPath = null;
+        $targetItem = null;
+        while ($id !== null) {
+            if (!preg_match('/\A[ETS]-[0-9]+\z/', $id) || isset($visited[$id])) {
+                throw new WorkflowException('Invalid or cyclic item ancestry.');
+            }
+            $visited[$id] = true;
+            $paths = [];
+            if (is_dir($this->itemsDir())) {
+                $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($this->itemsDir(), \FilesystemIterator::SKIP_DOTS));
+                foreach ($iterator as $file) {
+                    if ($file->getFilename() === 'item.md' && basename($file->getPath()) === $id && $file->isFile()) {
+                        $paths[] = $file->getPathname();
+                    }
+                }
+            }
+            if (count($paths) !== 1) {
+                throw new WorkflowException('Missing or ambiguous item ancestry: '.$id);
+            }
+            $raw = @file_get_contents($paths[0]);
+            if ($raw === false) {
+                throw new WorkflowException('Cannot read item ancestry: '.$id);
+            }
+            $parsed = FrontMatter::parse($raw);
+            $data = $parsed['data'];
+            $kinds = ['E' => 'epic', 'T' => 'task', 'S' => 'subtask'];
+            if (($data['id'] ?? null) !== $id || ($data['kind'] ?? null) !== $kinds[$id[0]] || !array_key_exists('parent', $data)) {
+                throw new WorkflowException('Malformed item ancestry: '.$id);
+            }
+            $kind = $data['kind'];
+            if ($childKind !== null && !(($childKind === 'task' && $kind === 'epic') || ($childKind === 'subtask' && $kind === 'task'))) {
+                throw new WorkflowException('Invalid parent kind.');
+            }
+            $parent = $data['parent'];
+            if (($parent !== null && (!is_string($parent) || $kind === 'epic')) || ($parent === null && $kind === 'subtask')) {
+                throw new WorkflowException('Invalid parent.');
+            }
+            $item = Item::fromArray($data, $parsed['body']);
+            if ($targetItem === null) {
+                $targetPath = $paths[0];
+                $targetItem = $item;
+            }
+            $childKind = $kind;
+            $id = $parent;
+        }
+
+        return [$targetPath, array_keys($visited), $targetItem];
+    }
+
+    /**
      * Record explicit receipt intent, including identical receipts in one second.
      *
      * @param array<string, mixed> $receipt
@@ -274,13 +455,16 @@ final class ItemStore
     }
 
     /** The sole explicit unverified-completion exception; never a generic save flag. */
-    public function close(string $id, Status $status, string $reason, string $at, bool $force = false): bool
+    public function close(string $id, Status $status, string $reason, string $at, bool $force = false, ?callable $prepareReason = null): bool
     {
         if (!in_array($status, [Status::Done, Status::Cancelled], true)) {
             throw new WorkflowException('Close requires status done or cancelled.');
         }
 
-        $closed = $this->mutateWithIntent($id, function (Item $item) use ($status, $reason, $at): Item {
+        $closed = $this->mutateWithIntent($id, function (Item $item) use ($status, $reason, $at, $prepareReason): Item {
+            if ($prepareReason !== null) {
+                $reason = $prepareReason($item, $reason);
+            }
             $item->status = $status;
             $entry = sprintf('- %s · closed as %s', $at, $status->value);
             if ($reason !== '') {
@@ -367,8 +551,28 @@ final class ItemStore
     }
 
     /** @param array<string, mixed>|null $receipt */
-    private function persist(Item $item, ?Item $before = null, ?array $receipt = null, bool $forceClose = false): void
+    private function persist(Item $item, ?Item $before = null, ?array $receipt = null, bool $forceClose = false, ?string $targetPath = null, ?callable $beforeRename = null, ?array $eventIntent = null): void
     {
+        if (array_key_exists('automated_events', $item->extra)) {
+            throw new InvalidItemException('automated_events cannot be supplied as extra metadata.');
+        }
+        if ($item->automatedEvents !== null) {
+            AutomatedEvent::validate($item->automatedEvents);
+        }
+        $oldEvents = $before?->automatedEvents;
+        if ($eventIntent === null) {
+            if ($oldEvents !== $item->automatedEvents) {
+                throw new WorkflowException('Automated events cannot be changed by this operation.');
+            }
+        } else {
+            $old = $oldEvents ?? [];
+            $new = $item->automatedEvents ?? [];
+            $event = end($new);
+            if (count($new) !== count($old) + 1 || array_slice($new, 0, -1) !== $old
+                || !is_array($event) || $event['action'] !== $eventIntent['action'] || $event['run_id'] !== $eventIntent['run_id']) {
+                throw new WorkflowException('Invalid automated event mutation.');
+            }
+        }
         $unverifiedException = ItemLifecycle::apply($before, $item, $receipt, $forceClose);
         $items = [];
         foreach ($this->ids() as $id) {
@@ -406,33 +610,53 @@ final class ItemStore
         }
         $item->updated = gmdate('c');
         $contents = FrontMatter::render($item->toArray(), $item->body);
-        $this->atomicWrite($this->itemPath($item->id), $contents);
+        $this->atomicWrite($targetPath ?? $this->itemPath($item->id), $contents, $beforeRename);
     }
 
-    private function atomicWrite(string $path, string $contents): void
+    private function atomicWrite(string $path, string $contents, ?callable $beforeRename = null): void
     {
         $directory = dirname($path);
         if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
             throw new WorkflowException(sprintf('Cannot create directory: %s', $directory));
         }
 
-        $temporary = $directory.'/.'.basename($path).'.'.bin2hex(random_bytes(6)).'.tmp';
-        $handle = fopen($temporary, 'wb');
+        $temporary = $directory.'/.'.basename($path).'.'.bin2hex(random_bytes(16)).'.tmp';
+        $handle = @fopen($temporary, 'xb');
         if ($handle === false) {
             throw new WorkflowException(sprintf('Cannot write temporary file: %s', $temporary));
         }
 
         try {
-            fwrite($handle, $contents);
-            fflush($handle);
-            fsync($handle);
+            $offset = 0;
+            $length = strlen($contents);
+            while ($offset < $length) {
+                $written = @fwrite($handle, substr($contents, $offset));
+                if ($written === false || $written === 0) {
+                    throw new WorkflowException(sprintf('Cannot write temporary file: %s', $temporary));
+                }
+                $offset += $written;
+            }
+            if (!@fflush($handle) || !@fsync($handle)) {
+                throw new WorkflowException(sprintf('Cannot flush temporary file: %s', $temporary));
+            }
+            if (!@fclose($handle)) {
+                $handle = null;
+                throw new WorkflowException(sprintf('Cannot close temporary file: %s', $temporary));
+            }
+            $handle = null;
+            if ($beforeRename !== null) {
+                $beforeRename();
+            }
+            if (!@rename($temporary, $path)) {
+                throw new WorkflowException(sprintf('Cannot replace file: %s; inspect before retrying.', $path));
+            }
         } finally {
-            fclose($handle);
-        }
-
-        if (!rename($temporary, $path)) {
-            @unlink($temporary);
-            throw new WorkflowException(sprintf('Cannot replace file: %s', $path));
+            if (is_resource($handle)) {
+                fclose($handle);
+            }
+            if (is_file($temporary)) {
+                @unlink($temporary);
+            }
         }
     }
 

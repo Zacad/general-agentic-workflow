@@ -187,6 +187,77 @@ final class ProtocolExamplesTest extends WorkflowTestCase
         self::assertStringContainsString('composer install --no-dev', $output);
     }
 
+    public function testBrowserGuidanceIsDistributedAndRefreshedWithoutOverwritingHostContent(): void
+    {
+        $project = $this->root.'/browser-host';
+        mkdir($project);
+        $this->succeed($project, ['install', $project]);
+        $paths = ['AGENTS.md', '.agents/skills/verify-outcome/SKILL.md', 'docs/browser-testing.md'];
+        foreach ($paths as $path) {
+            self::assertFileEquals($this->kit.'/'.$path, $project.'/'.$path, $path);
+        }
+        self::assertStringContainsString('docs/browser-testing.md', (string) file_get_contents($project.'/AGENTS.md'));
+        self::assertStringContainsString('docs/browser-testing.md', (string) file_get_contents($project.'/.agents/skills/verify-outcome/SKILL.md'));
+
+        $original = (string) file_get_contents($project.'/AGENTS.md');
+        $begin = strpos($original, '<!-- BEGIN KIT WORKFLOW RULES');
+        $end = strpos($original, '<!-- END KIT WORKFLOW RULES -->');
+        self::assertNotFalse($begin);
+        self::assertNotFalse($end);
+        $end += strlen('<!-- END KIT WORKFLOW RULES -->');
+        $oldContract = "Host prefix\n".substr($original, $begin, strpos($original, "\n", $begin) - $begin + 1)
+            ."Old managed rule\n<!-- END KIT WORKFLOW RULES -->\nHost suffix\n";
+        $this->put($project.'/AGENTS.md', $oldContract);
+        $this->put($project.'/docs/browser-testing.md', 'Old browser guide');
+        $this->put($project.'/.agents/skills/verify-outcome/SKILL.md', 'Old verifier');
+        $this->put($project.'/README.md', 'Host README');
+        $history = "Host history unchanged\n";
+        $this->put($project.'/.workflow/items/T-777/outputs/history.txt', $history);
+
+        $this->succeed($project, ['install', $project]);
+        self::assertSame($oldContract, file_get_contents($project.'/AGENTS.md'));
+        self::assertSame('Old browser guide', file_get_contents($project.'/docs/browser-testing.md'));
+        self::assertSame('Old verifier', file_get_contents($project.'/.agents/skills/verify-outcome/SKILL.md'));
+
+        $this->succeed($project, ['install', $project, '--force']);
+        $refreshed = (string) file_get_contents($project.'/AGENTS.md');
+        self::assertSame("Host prefix\n".substr($original, $begin, $end - $begin)."\nHost suffix\n", $refreshed);
+        self::assertFileEquals($this->kit.'/docs/browser-testing.md', $project.'/docs/browser-testing.md');
+        self::assertFileEquals($this->kit.'/.agents/skills/verify-outcome/SKILL.md', $project.'/.agents/skills/verify-outcome/SKILL.md');
+        self::assertSame('Host README', file_get_contents($project.'/README.md'));
+        self::assertSame($history, file_get_contents($project.'/.workflow/items/T-777/outputs/history.txt'));
+    }
+
+    public function testBrowserGuidanceDocumentsDecisionCasesRatherThanAnEnforcementEngine(): void
+    {
+        $guide = (string) file_get_contents($this->kit.'/docs/browser-testing.md');
+        foreach ([
+            'not a permission detector or',
+            '**Absent catalog:**',
+            '**Unknown denial provenance:**',
+            '**Capability-only restriction:**',
+            '**Explicit broader ban:**',
+            '**Unanswered or unavailable:**',
+            '**Playback:**',
+            '**Recovery after clarification:**',
+            'Never retry a denied action through shell, MCP, another role',
+            'an independent reviewer must actually watch moving',
+            'https://opencode.ai/docs/tools#browser',
+            'https://opencode.ai/docs/permissions',
+            'https://opencode.ai/docs/policies#tools',
+        ] as $expected) {
+            self::assertStringContainsString($expected, $guide);
+        }
+        $root = (string) file_get_contents($this->kit.'/AGENTS.md');
+        self::assertStringContainsString('Human-reviewed mode is the default', $root);
+        self::assertStringContainsString('design verifier and the', $root);
+        self::assertStringContainsString('implementation worker are separate instances', $root);
+        $install = (string) file_get_contents($this->kit.'/docs/install.md');
+        self::assertStringContainsString('[browser testing procedure](browser-testing.md)', $install);
+        self::assertStringContainsString('reviewed manual merge', $install);
+        // Static assertions check distributed guidance, not real agent behavior or policy.
+    }
+
     public function testActiveDocumentationLinksAndArchitectureSourceReferencesResolve(): void
     {
         $documents = [

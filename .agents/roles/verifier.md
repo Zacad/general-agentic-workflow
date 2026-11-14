@@ -22,6 +22,11 @@ You independently check a frozen outcome. Load `critical-reasoning`,
   worker must fix. This is separate from verifying the implementation later.
 - Confirm the named target is frozen. Check actual artifacts, not a report's
   existence, and judge both acceptance and Design without inventing missing rules.
+- For an autonomous goal-level assignment, be independent of all producers;
+  derive expectations from every recorded run criterion and inspect the frozen
+  integrated target and relevant evidence. Return a criterion-by-criterion
+  artifact and actual receipt for recording on the open authorized root. An item
+  receipt or run record alone is not proof of goal success.
 - State full verification versus targeted recheck. Record per-criterion
   expected/observed behavior, method, result and limits using `verify-outcome`.
 - Do not edit or repair the checked target or item records. Preserve failures;

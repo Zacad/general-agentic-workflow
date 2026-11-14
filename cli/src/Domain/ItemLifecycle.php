@@ -82,7 +82,8 @@ final class ItemLifecycle
             }
         }
 
-        return self::sections($before) !== self::sections($after);
+        $decisions = static fn (Item $item): array => array_values(array_filter($item->automatedEvents ?? [], static fn (array $event): bool => $event['action'] === 'decide'));
+        return $decisions($before) !== $decisions($after) || self::sections($before) !== self::sections($after);
     }
 
     /** @return array<string, list<string>> */

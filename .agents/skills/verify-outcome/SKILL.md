@@ -19,6 +19,14 @@ target paths and an assigned verification-artifact path.
    recovery, boundary and affected regressions. Use the real runtime for code;
    check exact claims/sources in prose and rendered accessibility states for UI.
    A report's existence or green tests for a different criterion are not proof.
+   For browser-rendered evidence, follow `docs/browser-testing.md`: establish
+   authority for this verifier's exact route and effects, never bypass a denial,
+   and block on unresolved permission or unavailable capability. Independently
+   inspect the frozen rendered target. If continuous playback is required, an
+   independent reviewer must actually watch the moving target or its faithful
+   frozen recording; stills, sampled frames or an unplayable recording do not
+   establish continuity. Report the criterion blocked if nobody authorized can
+   watch it; disclose renderer, inspection method and relevant limits.
 4. Record per criterion: expected, observed, method, environment, result
    (`pass`, `fail`, `unrun`, `blocked`) and limits. Distinguish unavailable checks
    from failures; do not install, repair or mutate the target to make it pass.

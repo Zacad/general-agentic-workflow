@@ -22,10 +22,15 @@ canonical rules and exact scaffold/runtime contract.
 3. Root `AGENTS.md`: `install --force` refreshes only the block between the
    `BEGIN/END KIT WORKFLOW RULES` markers; keep project rules outside them and
    they survive updates. For a marker-free host `AGENTS.md` (a pre-5.3 install),
-   do a one-time merge or replacement to introduce the markers — review
-   missing/incomplete/conflicting rules rather than replace host authority.
+    do a one-time merge or replacement to introduce the markers — review
+    missing/incomplete/conflicting rules rather than replace host authority.
+    Inspect marker layout before `--force`; duplicate/ambiguous pairs are not
+    reliably detected by the installer and require reviewed manual merge.
    Follow the "gaining the markers" steps in `docs/install.md`. Check every role
    still explicitly loads that root file when used separately.
+   Fresh installs and reviewed managed-block refreshes distribute the autonomous
+   contract, including its bounded public network default; they neither grant
+   host permissions nor enable autonomous mode. Preserve stricter host rules.
 4. Bootstrap with `composer install --no-dev` in target `cli/`, then initialize
    missing records and validate. Use full installation only for development.
    Use `./cli/bin/workflow` or the absolute target path (optionally add `cli/bin`

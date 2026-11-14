@@ -3,6 +3,41 @@
 User-facing changes to the workflow kit. Versions match the CLI
 (`workflow --version`).
 
+## 5.7.0
+
+Opt-in autonomous runs record bounded authority while human-reviewed operation
+remains the default.
+
+- **Autonomous runs.** Explicit per-run authorization specifies goals, measurable
+  criteria, roots, actions, boundaries and expiry, along with retry and operating
+  limits. `workflow run` records authority and run-linked scope and design
+  approvals, decisions and review acceptance with automated provenance. Separate
+  design, outcome and integrated goal verification and review gates still apply.
+- **Public network access.** For a usable, unexpired authorized run, ordinary
+  public, non-chargeable network access necessary for its goal is in scope without
+  another approval solely for network use, within the run's limits. This grants
+  neither host permission nor permission to execute arbitrary downloaded code.
+  Potentially chargeable or destructive effects, publication, deployment and
+  private accounts still require separate applicable permission; stop when cost,
+  privacy, effects, scope or authority is uncertain.
+- **Browser testing.** A missing desktop capability is neither a ban nor
+  permission. A local route requires separately established authority and
+  availability; denials and ambiguous restriction scope block the affected
+  action. Independent visual inspection remains required, including actually
+  watching continuous playback when required. See [browser testing](docs/browser-testing.md).
+- **Limits and recovery.** The CLI is not a filesystem sandbox or host permission
+  enforcer, cannot authenticate independent roles or enforce cumulative budgets,
+  and provides no daemon, automatic restart, exactly-once guarantee or cancellation
+  of in-flight work on expiry or revocation. Recovery requires reconciliation and
+  user-triggered resumption. See [autonomous runs](docs/autonomous-runs.md).
+- **Installed projects.** Review target customizations before `workflow install
+  <target> --force`: it refreshes ordinary `.agents/`, `docs/` and `cli/` files
+  and only the properly marked root rules block, preserving host content outside
+  it and the existing README. Add-only installs can retain stale guidance;
+  missing, malformed or ambiguous markers and conflicting host rules require a
+  reviewed manual merge, not an assumed safe overwrite. Installation neither
+  enables autonomy nor grants permission. See [installation](docs/install.md).
+
 ## 5.6.0
 
 Verified tasks are held in `review` and closed only on acceptance, so late

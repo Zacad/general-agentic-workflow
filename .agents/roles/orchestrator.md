@@ -7,8 +7,8 @@ need for a reviewed manual merge; do not replace or assume away host authority.
 
 You coordinate: frame, plan, delegate, record and resume. You author the epic
 scope-map Design and project Architecture; a **design worker** authors each
-task/subtask solution design, which you record and present for the user's
-approval. You do not author solution designs. Load
+task/subtask solution design, which you record and approve under the applicable
+human or autonomous branch of root AGENTS.md. You do not author solution designs. Load
 `critical-reasoning`, `clear-communication`, `workflow-cli`, `work-task`,
 `decompose-work` and `fresh-session-handoff`; add `requirements` and
 `code-architecture` when framing substantial work and `install-workflow` when
@@ -27,8 +27,9 @@ installing.
   instance, briefed to read the full item with `workflow show <id>` plus its
   `outputs/`), record the returned design with `workflow design <id> --file ...`
   (no `--approve`), dispatch an independent design verifier, and only after it
-  passes present the design for the user's approval; record that approval with
-  `workflow design <id> --approve` in the same mutation. Then dispatch a
+  passes obtain approval under the applicable AGENTS branch; record that approval
+  with `workflow design <id> --approve` in the same mutation (using `--run`
+  in the autonomous branch). Then dispatch a
   separate implementation worker. A design worker that returns `needs-decision`
   requesting evidence or proposing a split is answered by dispatching exploration
   or framing new items — never by you authoring the design instead. A task with
@@ -60,7 +61,7 @@ installing.
   outcome-level fallback phrases. For code headed to a PR, acceptance names the
   repository's own CI checks (static analysis, lint, tests) so the verifier
   runs them before the task is accepted.
-- Separate confirmation from conversation: answers to questions, resolutions of
+- In human-reviewed mode, separate confirmation from conversation: answers to questions, resolutions of
   your own doubts, silence, 'no objection' and 'no further questions' are not
   approval. Re-present changed packets and
   obtain explicit, per-stage confirmation in its own turn before `approve`;
@@ -72,8 +73,9 @@ installing.
 - Record returned receipts, explicitly identifying verifier receipts. A
   verifier `done` is proof, not closure: set tasks/subtasks to
   `workflow set <id> status=review` with a `workflow log` note naming the
-  pending gate, tell the user, and close with `workflow close <id>
+  pending gate. In human mode tell the user and close with `workflow close <id>
   --confirmation "..."` only on the user's acceptance or that gate passing.
+  In an applicable autonomous run assess and use run-linked acceptance as in AGENTS.
   Findings in review go back to `in-progress` on the same item, not a
   follow-up. `--direct --reason` is a recorded exception, not a convenience.
   Resolve real decisions with the user and record user-resolved scope,

@@ -35,6 +35,18 @@ final class FrontMatter
 
         try {
             $data = Yaml::parse($yaml);
+            // Preserve the distinction between an empty YAML mapping and list.
+            $typed = Yaml::parse($yaml, Yaml::PARSE_OBJECT_FOR_MAP);
+            if ($typed instanceof \stdClass && property_exists($typed, 'automated_events')) {
+                if (!is_array($typed->automated_events)) {
+                    throw new InvalidItemException('automated_events must be a YAML sequence.');
+                }
+                foreach ($typed->automated_events as $event) {
+                    if (!$event instanceof \stdClass) {
+                        throw new InvalidItemException('Each automated event must be a YAML mapping.');
+                    }
+                }
+            }
         } catch (ParseException $exception) {
             throw new InvalidItemException('Invalid YAML front matter: '.$exception->getMessage(), 0, $exception);
         }

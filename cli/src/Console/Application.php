@@ -23,6 +23,7 @@ use Workflow\Console\Command\PlanCommand;
 use Workflow\Console\Command\ReadyCommand;
 use Workflow\Console\Command\ResultCommand;
 use Workflow\Console\Command\ReviewCommand;
+use Workflow\Console\Command\RunCommand;
 use Workflow\Console\Command\SetCommand;
 use Workflow\Console\Command\ShowCommand;
 use Workflow\Console\Command\StatusCommand;
@@ -32,7 +33,7 @@ final class Application extends \Symfony\Component\Console\Application
 {
     public function __construct()
     {
-        parent::__construct('workflow', '5.6.0');
+        parent::__construct('workflow', '5.7.0');
 
         $this->addCommands([
             new InitCommand(),
@@ -44,6 +45,7 @@ final class Application extends \Symfony\Component\Console\Application
             new ReadyCommand(),
             new BriefCommand(),
             new ReviewCommand(),
+            new RunCommand(),
             new ResultCommand(),
             new DepsCommand(),
             new SetCommand(),

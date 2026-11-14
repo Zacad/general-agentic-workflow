@@ -42,7 +42,8 @@ policy; use this procedure to choose boundaries, not to add process gates.
    considered, why subtasks were/weren't useful, and explicit triggers for
    deferred work. Unexplored is not deferred. Apply the Sizing cues below as
    judgment, not hard thresholds.
-6. Present exact new child records after evidence. Later evidence may revise
+6. Inspect exact new child records after evidence; present them in human mode or
+   follow the applicable autonomous branch of root AGENTS. Later evidence may revise
    the map; identify affected scope changes for review without reapproving
    unchanged records. Do not rewrite completed history to fit a new map.
 

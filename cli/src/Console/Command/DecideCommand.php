@@ -6,9 +6,12 @@ namespace Workflow\Console\Command;
 
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Workflow\Store\ItemStore;
 use Workflow\Support\Clock;
+use Workflow\Domain\WorkflowException;
+use Workflow\Support\ScopeOutput;
 
 final class DecideCommand extends BaseCommand
 {
@@ -21,7 +24,8 @@ final class DecideCommand extends BaseCommand
     {
         $this->setDescription('Append a durable decision to the item.')
             ->addArgument('id', InputArgument::REQUIRED, 'Item ID.')
-            ->addArgument('decision', InputArgument::REQUIRED, 'The decision and its reason.');
+            ->addArgument('decision', InputArgument::REQUIRED, 'The decision and its reason.')
+            ->addOption('run', null, InputOption::VALUE_REQUIRED, 'Authorize an automated decision using this run ID.');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -30,6 +34,19 @@ final class DecideCommand extends BaseCommand
         $decision = trim((string) $input->getArgument('decision'));
         $entry = sprintf('- %s · %s', Clock::now(), $decision);
         $store = $this->store($input);
+
+        $run = $input->getOption('run');
+        if ($run !== null) {
+            try {
+                $store->decideForRun($id, (string) $run, (string) $input->getArgument('decision'));
+            } catch (WorkflowException $exception) {
+                $output->writeln('Error: '.ScopeOutput::literal($exception->getMessage()), OutputInterface::OUTPUT_RAW);
+                return self::INVALID;
+            }
+            $output->writeln('Automated decision recorded for '.ScopeOutput::literal($id).' by run '.ScopeOutput::literal($run).'.', OutputInterface::OUTPUT_RAW);
+            $this->refreshBoard($input, $output);
+            return self::SUCCESS;
+        }
 
         $store->mutate($id, function ($item) use ($store, $entry): void {
             $item->body = ItemStore::appendToSection($item->body, 'Decisions', $entry);

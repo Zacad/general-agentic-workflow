@@ -75,6 +75,10 @@ produces advisory warnings rather than new process gates.
 
 ## Scope, discovery and approval
 
+Human-reviewed mode is the default. Human presentation, confirmation and
+acceptance requirements in this contract apply unless the narrowly scoped
+autonomous branch below applies; all other requirements remain in force.
+
 Frame outcome, scope in/out, acceptance criteria, dependencies and owned paths;
 an epic also includes discovery and integration. Approval covers only kind,
 parent, title, outcome, scope, acceptance and dependencies, and `approve`
@@ -98,7 +102,7 @@ answers or scope changes. If the user raises new questions or objections after
 answering, pause affected work until they are resolved. Required independent
 evidence means a separate explorer run, not a mandatory extra item.
 
-Explorer dispatch is the only dispatch allowed without current approval:
+Explorer dispatch is the only dispatch allowed without current scope approval:
 pre-approval discovery is legitimate when it informs the scope being approved,
 and the Plan should state which mode is used. Implementation work always
 requires current approval; never frame implementation children before approving
@@ -108,6 +112,114 @@ After approval, classify changes with `workflow change`: material changes
 (outcome changes, scope removal, dependency removal, owned path changes)
 require full re-approval with `workflow approve`; non-material additions
 (scope, dependency, acceptance additions) take `workflow approve <id> --delta`.
+
+## Autonomous branch (per run only)
+
+This branch replaces only the human checkpoint presentation/confirmation and
+acceptance steps above and below, and only while an applicable run has usable
+authority for the action and item. It never replaces independent roles, evidence,
+scope, history, host policy or CLI gates. Otherwise use human-reviewed mode.
+A stricter project, nested, developer, host or user rule prevails; conflicts or
+missing/incomplete contracts require reviewed manual merge or human decision.
+
+The user must explicitly authorize this run and its goal, measurable success
+criteria, roots, allowed actions and boundaries, expiry, retry budget and
+operational limits. A vague goal, prior run, host setting, silence or CLI flag
+alone is not authorization. Read host rules and permissions first. Authorized
+local edits and ordinary tests within goal and ownership are candidates only
+where permitted. For a usable, unexpired authorized run, ordinary public,
+non-chargeable network access necessary for its goal, such as fetching public
+dependencies or assets, is in scope without additional user approval solely for
+network use, subject to the run's boundaries and limits. This grants no host
+permission and does not authorize arbitrary execution of downloaded code.
+Potentially chargeable actions, destructive actions, publication, deployment,
+private accounts and other restricted effects require separate explicit applicable
+permission. Public visibility or a free tier does not prove zero cost; if cost,
+privacy, effects, scope or authority is uncertain, stop and seek a decision.
+Stricter user, project, nested and host rules prevail. Obey prompts and stop on
+denied or unavailable permission; never bypass a denial or change permissions
+(including OpenCode `--auto`). Check child-session permissions and delegation.
+
+Path and filesystem restrictions in instructions do not themselves confine arbitrary shell commands or child-agent processes.
+The workflow kit and CLI do not enforce those restrictions and are not a filesystem sandbox.
+Those restrictions and stricter host rules must still be obeyed.
+If hard filesystem confinement is required, separately provide and verify host-enforced controls; the workflow kit does not provide them.
+
+For a new goal, only when bootstrap itself is authorized, create and frame a
+minimal unapproved draft epic or standalone task as a run anchor; do not create
+implementation children or dispatch implementation until scope approval. If
+bootstrap needs human approval, stop. For existing roots inspect `status`, the
+orchestrator brief and epic `review`; choose existing user-authorized roots whose
+scope and ancestry fit the goal. New unrelated roots require new authorization.
+Create the run with the actual goal, criteria, selected actions, roots, expiry
+and max roots using `workflow run create --authorize-autonomous`; inspect
+`workflow run show <run> --json` and require `authority_usable` and exact fit.
+The CLI checks ancestry, not goal fit; max roots counts anchors, not descendants.
+More authority or time needs a newly authorized run.
+
+Stage epic and child scopes as usual, inspect their exact packets and changes
+against the goal and use `workflow approve <id> --run <run>` (or permitted
+`--delta`). Record authorized routine decisions with `workflow decide <id>
+<decision> --run <run>`. A distinct design worker authors a design; record it
+without approval, then a separate verifier checks it. Only after that check,
+assess the exact content and use `workflow design <id> --file <path> --approve
+--run <run>` before dispatching a separate implementation worker. Run-linked
+design approval cannot use `--phase`, `--start`, `--by` or `--confirmation`.
+If semantic fit, permission or user preference is unresolved, ask; never call
+automated approval a human attestation. If independent roles are unavailable,
+block. Explicit human or external gates cannot be invented or replaced.
+
+Freeze targets and record an actual independent verifier receipt. Hold each
+task/subtask in review and log the pending automated review; with current proof
+and `accept-review` authority, assess and close using `workflow close <id>
+--reason <rationale> --run <run>`, never `--confirmation`, `--force` or
+`--direct`. Epic closure uses ordinary close after independent integration proof.
+Before closing an appropriate authorized root, independently verify the frozen
+integrated goal against every recorded run criterion, record the actual
+criterion-by-criterion report and verifier receipt there, and preserve evidence.
+Report success only after that proof, all gates and closures, and no target
+changes. Item proof alone is not goal proof; run records have no success state.
+If proof cannot be recorded without changing completed history, stop for a
+bounded follow-up or decision. The CLI does not authenticate independent roles.
+
+Set finite per-operation retry budgets and action/time/cost/token limits at run
+start; durably record attempts, reasons and remaining budget across sessions.
+CLI expiry and root limits do not enforce host actions, spending, child processes
+or cancellation. Where hard limits are required, require verifiable host-enforced
+accounting across children and resumption; otherwise stop. Stop on exhaustion,
+unsafe ambiguity, denied/unanswered permissions, unavailable roles or unresolved
+verification. Report status, evidence, uncertain effects and the next decision.
+
+For a known pause use `workflow run report <run> --status <blocked|interrupted|limit-exceeded>
+--reason <reason> --recovery <plan>` with one actual status. A crashed active
+record proves neither completion nor inactivity. On user-triggered resumption,
+read host rules, run show, status, ready and the relevant brief; reconcile item
+proof, saved budget, child state and actual effects before retrying. Never replay
+ambiguous side effects, assume child cancellation, delete orphan files or claim
+exactly-once or cross-file atomicity. Block if reconciliation is impossible.
+For reported nonterminal state, while still authorized and unexpired, record
+`workflow run resume <run> --recovery <actual-reconciliation>`; it neither
+validates reconciliation nor dispatches work. After a crash reconcile first and
+use report/resume where possible. Expiry/revocation does not cancel in-flight
+work; do not resume expired, revoked or malformed authority. Concurrent sessions
+need host coordination; CLI locks cover only individual cooperating writes. No
+daemon, automatic restart or guaranteed unattended continuation is provided.
+See `docs/autonomous-runs.md` for exact commands and limits.
+
+## Browser-rendered verification
+
+When browser-rendered evidence is required, follow `docs/browser-testing.md`.
+A missing desktop browser catalog alone is neither a browser ban nor permission
+to run one. A desktop `browser` deny and a `browser` skill deny restrict those
+capabilities; if denial provenance, intent or coverage is unknown, block and
+ask the responsible authority before proposing a fallback. Respect broader
+host, project and user prohibitions and never bypass a denial or change
+permissions. Use a local route only when the exact role, action and effects are
+independently authorized and available. Independent visual inspection remains
+required; where continuous playback is required, a reviewer must actually watch
+the moving target or faithful recording, not just stills or sampled frames. If
+permission, capability or required inspection is unavailable, report blocked.
+This guidance does not enforce host permissions or change review gates.
 
 ## Design
 
@@ -126,7 +238,7 @@ trade-offs, the chosen approach and its limits, and the subtask decomposition
 — the subtask map, or the explicit reason no finer split exists. The
 orchestrator records it with `workflow design <id> --file ...` (no
 `--approve`), an independent design verifier checks it before the user sees
-it, and implementation dispatch requires the user's approval of that design,
+it, and implementation dispatch requires approval of that design,
 recorded with `workflow design <id> --approve` in the same mutation that writes
 it. Scope approval survives Design changes; design approval does not — a
 material Design change stales it, so re-present the design and re-approve

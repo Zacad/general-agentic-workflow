@@ -9,9 +9,11 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Workflow\Domain\Kind;
+use Workflow\Domain\Item;
 use Workflow\Domain\Status;
 use Workflow\Domain\WorkflowException;
 use Workflow\Support\Clock;
+use Workflow\Support\ScopeOutput;
 
 final class CloseCommand extends BaseCommand
 {
@@ -29,6 +31,7 @@ final class CloseCommand extends BaseCommand
             ->addOption('force', null, InputOption::VALUE_NONE, 'Close done without a verifier receipt.')
             ->addOption('confirmation', null, InputOption::VALUE_REQUIRED, 'Closing a task/subtask from review: the user\'s literal acceptance words, or the named external gate that passed.')
             ->addOption('direct', null, InputOption::VALUE_NONE, 'Close a task/subtask done without a review hold; requires --reason.')
+            ->addOption('run', null, InputOption::VALUE_REQUIRED, 'Authorize automated review acceptance using this run ID.')
             ->addOption('json', null, InputOption::VALUE_NONE, 'Emit JSON.');
     }
 
@@ -49,24 +52,42 @@ final class CloseCommand extends BaseCommand
         $confirmation = trim((string) $input->getOption('confirmation'));
         $direct = (bool) $input->getOption('direct');
 
-        try {
-            if ($status === Status::Done) {
-                $gated = $store->load($id);
-                if ($gated->kind !== Kind::Epic && $gated->status->isOpen()) {
-                    $gate = $this->reviewGate($id, $gated->status, $confirmation, $direct, $reason);
-                    if ($gate !== null) {
-                        $output->writeln('<error>'.$gate.'</error>');
+        $run = $input->getOption('run');
+        if ($run !== null) {
+            if ($status !== Status::Done || $force || $direct || $input->getOption('confirmation') !== null || $reason === '') {
+                $output->writeln('<error>Automated acceptance requires done and a nonblank --reason; --confirmation, --force and --direct are forbidden.</error>');
+                return self::INVALID;
+            }
+            try {
+                $event = $store->acceptReviewForRun($id, (string) $run, (string) $input->getOption('reason'));
+            } catch (WorkflowException $exception) {
+                $output->writeln('Error: '.ScopeOutput::literal($exception->getMessage()), OutputInterface::OUTPUT_RAW);
+                return self::FAILURE;
+            }
+            $this->refreshBoard($input, $output);
+            if ($input->getOption('json')) {
+                $this->writeJson($output, ['id' => $id, 'status' => 'done', 'verified' => true, 'automated_acceptance' => $event]);
+            } else {
+                $output->writeln('Closed '.ScopeOutput::literal($id).' as done with automated acceptance by run '.ScopeOutput::literal($run).'.', OutputInterface::OUTPUT_RAW);
+            }
+            return self::SUCCESS;
+        }
 
-                        return self::FAILURE;
+        try {
+            $verified = $store->close($id, $status, $reason, $at, $force, function (Item $current, string $reason) use ($status, $id, $confirmation, $direct): string {
+                if ($status === Status::Done && $current->kind !== Kind::Epic && $current->status->isOpen()) {
+                    $gate = $this->reviewGate($id, $current->status, $confirmation, $direct, $reason);
+                    if ($gate !== null) {
+                        throw new WorkflowException($gate);
                     }
-                    if ($gated->status === Status::Review) {
+                    if ($current->status === Status::Review) {
                         $reason = trim('Accepted: '.$confirmation.($reason !== '' ? ' — '.$reason : ''));
                     } else {
                         $reason = 'Direct close without review: '.$reason;
                     }
                 }
-            }
-            $verified = $store->close($id, $status, $reason, $at, $force);
+                return $reason;
+            });
         } catch (WorkflowException $exception) {
             $output->writeln('<error>'.$exception->getMessage().'</error>');
 

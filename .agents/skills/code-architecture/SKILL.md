@@ -7,7 +7,7 @@ description: Choose a software design and testing strategy from traced requireme
 
 Two routes: **route 1 — architecture design** for a new product before code
 exists, and **route 2 — task solution design** for a bounded change to
-existing code. Both end in a user-approved design before implementation.
+existing code. Both require design approval under the applicable root AGENTS branch before implementation.
 
 **Inputs:** traced requirements and scenarios, existing code and tests,
 constraints, and the artifact path for the comparison.
@@ -38,14 +38,15 @@ constraints, and the artifact path for the comparison.
    produces the comparison and recommendation as an artifact and returns it; it
    does not approve its own design. The orchestrator records the Design with
    `workflow design <id> --file ...` (no `--approve`), an independent verifier
-   checks the design, and only then does the orchestrator present it to the user
-   and discuss it. On the user's approval the orchestrator re-records with
+   checks the design. In human mode the orchestrator then presents it to the user
+   and on approval re-records with
    `workflow design <id> --approve` in the same mutation that writes the approved
    `## Design`; the CLI refuses the implementation worker dispatch without it, and
-   a material design change requires re-approval.
+   a material design change requires re-approval. In an applicable autonomous
+   run, assess and approve the verified design with `--run` as root AGENTS specifies.
 
 ## Output
 
-A concise comparison artifact with a recommendation, presented to the user
-for approval before implementation. Do not provision services, change
+A concise comparison artifact with a recommendation, approved under the applicable
+root AGENTS branch before implementation. Do not provision services, change
 hosting or commit to paid resources from a draft.

@@ -365,7 +365,7 @@ final class ItemValidatorTest extends WorkflowTestCase
 
         $warnings = implode("\n", (new ItemValidator($this->store))->validate()->warnings);
         self::assertStringContainsString(
-            'T-001: approval has no recorded confirmation quote — approval must be explicit user confirmation.',
+            'T-001: approval has no recorded confirmation quote; source is legacy/unspecified.',
             $warnings,
         );
 
@@ -434,7 +434,7 @@ final class ItemValidatorTest extends WorkflowTestCase
 
         $warnings = implode("\n", (new ItemValidator($this->store))->validate()->warnings);
         self::assertStringContainsString(
-            'T-001: design approval has no recorded confirmation quote — approval must be explicit user confirmation.',
+            'T-001: design approval has no recorded confirmation quote; source is legacy/unspecified.',
             $warnings,
         );
 

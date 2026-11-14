@@ -138,6 +138,8 @@ final class BriefPacketTest extends WorkflowTestCase
                 'role' => $role,
                 'approval' => 'current (reviewer, 2026-10-21T00:00:00+00:00)',
                 'design_approval' => 'none',
+                'approval_provenance' => null,
+                'design_approval_provenance' => null,
                 'dependencies' => ['T-001 (done)'],
                 'upstream_artifacts' => ['T-001' => ['evidence/upstream.md']],
                 'plan' => 'Bounded approach.', 'design' => 'Required design.',

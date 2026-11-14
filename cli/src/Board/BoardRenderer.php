@@ -13,6 +13,7 @@ final class BoardRenderer
         Status::Draft,
         Status::Todo,
         Status::InProgress,
+        Status::Review,
         Status::Done,
         Status::Cancelled,
     ];
@@ -107,6 +108,7 @@ HTML;
             Status::Draft => 'Draft',
             Status::Todo => 'Todo',
             Status::InProgress => 'In progress',
+            Status::Review => 'Review',
             Status::Done => 'Done',
             Status::Cancelled => 'Cancelled',
         };

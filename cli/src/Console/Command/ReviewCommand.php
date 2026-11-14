@@ -135,10 +135,13 @@ final class ReviewCommand extends BaseCommand
             'phase' => $item->phase->value,
             'scope_hash' => $item->scopeHash(),
             'approval' => $item->approval?->toArray(),
+            'design_approval' => $item->designApproval?->toArray(),
             'approval_state' => $this->approvalLabel($item),
             'plan' => $item->section('Plan'),
             'design' => $item->section('Design'),
             'decisions' => $item->section('Decisions'),
+            'automated_decisions' => array_values(array_filter($item->automatedEvents ?? [], static fn (array $event): bool => $event['action'] === 'decide')),
+            'automated_acceptances' => array_values(array_filter($item->automatedEvents ?? [], static fn (array $event): bool => $event['action'] === 'accept-review')),
         ];
     }
 
@@ -184,6 +187,13 @@ final class ReviewCommand extends BaseCommand
         ), OutputInterface::OUTPUT_RAW);
         $output->writeln($indent.'hash: '.$item['scope_hash']);
         $output->writeln($indent.'approval record: '.ScopeOutput::literal($item['approval']), OutputInterface::OUTPUT_RAW);
+        $output->writeln($indent.'design approval record: '.ScopeOutput::literal($item['design_approval']), OutputInterface::OUTPUT_RAW);
+        foreach (['approval', 'design_approval'] as $name) {
+            if ($item[$name] !== null) {
+                $source = $item[$name]['provenance'] ?? null;
+                $output->writeln($indent.$name.' source: '.($source === null ? 'legacy/unspecified' : 'automated run '.$source['run_id']), OutputInterface::OUTPUT_RAW);
+            }
+        }
         $output->writeln(sprintf(
             '%splan: %s · design: %s',
             $indent,
@@ -199,6 +209,11 @@ final class ReviewCommand extends BaseCommand
             $output->writeln($indent.$section.':');
             foreach (preg_split('/\R/u', $text) ?: [] as $line) {
                 $output->writeln($indent.'  '.$line, OutputInterface::OUTPUT_RAW);
+            }
+        }
+        foreach (['automated_decisions' => 'automated decision', 'automated_acceptances' => 'automated acceptance'] as $field => $label) {
+            foreach ($item[$field] as $event) {
+                $output->writeln($indent.$label.': '.ScopeOutput::literal($event), OutputInterface::OUTPUT_RAW);
             }
         }
     }
