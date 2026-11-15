@@ -182,8 +182,10 @@ changes. Item proof alone is not goal proof; run records have no success state.
 If proof cannot be recorded without changing completed history, stop for a
 bounded follow-up or decision. The CLI does not authenticate independent roles.
 
-Set finite per-operation retry budgets and action/time/cost/token limits at run
+Set finite per-operation retry budgets and action/time/cost limits at run
 start; durably record attempts, reasons and remaining budget across sessions.
+The kit does not require a token limit; any user-, project- or host-required
+token limit remains binding.
 CLI expiry and root limits do not enforce host actions, spending, child processes
 or cancellation. Where hard limits are required, require verifiable host-enforced
 accounting across children and resumption; otherwise stop. Stop on exhaustion,

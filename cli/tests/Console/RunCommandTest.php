@@ -44,6 +44,27 @@ final class RunCommandTest extends WorkflowTestCase
         self::assertSame('revoked', json_decode($out, true)['effective_status']);
     }
 
+    public function testCreateWithoutTokenLimitProducesUsableRecord(): void
+    {
+        mkdir($this->root.'/.workflow/items/E-001', 0777, true);
+        file_put_contents($this->root.'/.workflow/items/E-001/item.md', "---\nid: E-001\nkind: epic\nparent: null\n---\n");
+        [$exit, $out, $err] = $this->cli(['run', 'create', '--authorize-autonomous', '--goal', 'goal', '--criterion', 'criterion', '--action', 'decide', '--root', 'E-001', '--expires-at', '2099-01-01T00:00:00Z', '--max-roots', '1']);
+        self::assertSame(0, $exit, $err);
+        [$exit, $json, $err] = $this->cli(['run', 'show', trim($out), '--json']);
+        self::assertSame(0, $exit, $err);
+        $data = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+        self::assertTrue($data['authority_usable']);
+        self::assertArrayNotHasKey('token', $data['limits']);
+        // A usable CLI record alone does not establish human or host authorization.
+    }
+
+    public function testVersion(): void
+    {
+        [$exit, $out, $err] = $this->cli(['--version']);
+        self::assertSame(0, $exit, $err);
+        self::assertSame("workflow 5.7.1\n", $out);
+    }
+
     public function testProcessLockContentionUsesBarrier(): void
     {
         mkdir($this->root.'/.workflow/items/E-001', 0777, true);

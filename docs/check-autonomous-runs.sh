@@ -29,6 +29,18 @@ def contains(path, *phrases):
     for phrase in phrases:
         assert phrase in content, f'{path}: missing {phrase!r}'
 
+for path in ('AGENTS.md', 'docs/autonomous-runs.md'):
+    contains(path, 'The kit does not require a token limit',
+             'token limit remains binding', 'action/time/cost limits',
+             'retry budget', 'expiry',
+             'Potentially chargeable actions, destructive actions')
+    assert 'action/time/cost/token limits' not in text(path), f'{path}: token mandate restored'
+contains('AGENTS.md', 'user-, project- or host-required',
+         'verifiable host-enforced accounting across children and resumption; otherwise stop')
+contains('docs/autonomous-runs.md', 'user-, project- or host-required',
+         'does not count actions, money, tokens or subprocesses',
+         'verify host enforcement across parent/child sessions and resumption; block if unavailable')
+
 contains('AGENTS.md', 'Human-reviewed mode is the default',
          'usable, unexpired authorized run',
          'ordinary public, non-chargeable network access necessary for its goal',
@@ -77,6 +89,7 @@ check_filesystem_disclosure "$fixture/clean/docs/autonomous-runs.md"
 cmp "$kit/.agents/roles/orchestrator.md" "$fixture/clean/.agents/roles/orchestrator.md"
 test -f "$fixture/clean/opencode.json"
 printf '\nHost rule survives refresh: public network access is prohibited.\n' >> "$fixture/clean/AGENTS.md"
+printf 'Host rule survives refresh: token limit is mandatory.\n' >> "$fixture/clean/AGENTS.md"
 python3 - "$fixture/clean/AGENTS.md" <<'PY'
 import pathlib, sys
 path = pathlib.Path(sys.argv[1])
@@ -92,6 +105,7 @@ check_filesystem_disclosure "$fixture/clean/docs/autonomous-runs.md"
 check_network_contract "$fixture/clean"
 ! grep -Fq 'STALE NETWORK RULE' "$fixture/clean/AGENTS.md"
 grep -Fq 'Host rule survives refresh: public network access is prohibited.' "$fixture/clean/AGENTS.md"
+grep -Fq 'Host rule survives refresh: token limit is mandatory.' "$fixture/clean/AGENTS.md"
 cmp "$kit/.agents/skills/install-workflow/SKILL.md" "$fixture/clean/.agents/skills/install-workflow/SKILL.md"
 for role in orchestrator worker verifier; do
   cmp "$kit/.agents/roles/$role.md" "$fixture/clean/.agents/roles/$role.md"

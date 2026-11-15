@@ -15,10 +15,12 @@ If hard filesystem confinement is required, separately provide and verify host-e
 
 Obtain explicit authorization for this specific run: goal, measurable success
 criteria, allowed roots and actions, work boundaries, expiry, retry budget and
-action/time/cost/token limits. An earlier run, a host setting or command flag is
-not consent. Check root and nested instructions, actual host permissions and
-child-session delegation. Ordinary local edits/tests within authorized owned
-paths are candidates only where allowed. For a usable, unexpired authorized run,
+action/time/cost limits. The kit does not require a token limit; any user-,
+project- or host-required token limit remains binding. An earlier run, a host
+setting or command flag is not consent. Check root and nested instructions,
+actual host permissions and child-session delegation. Ordinary local edits/tests
+within authorized owned paths are candidates only where allowed. For a usable,
+unexpired authorized run,
 ordinary public, non-chargeable network access necessary for its goal is in
 scope without additional user approval solely for network use, subject to the
 run's boundaries and limits. For example, fetching a public, non-chargeable

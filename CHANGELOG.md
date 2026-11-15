@@ -3,6 +3,14 @@
 User-facing changes to the workflow kit. Versions match the CLI
 (`workflow --version`).
 
+## 5.7.1
+
+- **Autonomous run limits.** The kit no longer requires a token limit. Limits
+  required by the user, project or host remain binding, and required hard
+  limits need verified host enforcement across children and resumption; the CLI
+  does not count tokens. Expiry, retry, spending and separate permissions for
+  potentially chargeable or destructive actions remain in force.
+
 ## 5.7.0
 
 Opt-in autonomous runs record bounded authority while human-reviewed operation
