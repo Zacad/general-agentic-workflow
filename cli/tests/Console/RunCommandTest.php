@@ -62,7 +62,7 @@ final class RunCommandTest extends WorkflowTestCase
     {
         [$exit, $out, $err] = $this->cli(['--version']);
         self::assertSame(0, $exit, $err);
-        self::assertSame("workflow 5.7.1\n", $out);
+        self::assertSame("workflow 5.8.0\n", $out);
     }
 
     public function testProcessLockContentionUsesBarrier(): void

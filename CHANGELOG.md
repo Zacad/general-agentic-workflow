@@ -3,6 +3,24 @@
 User-facing changes to the workflow kit. Versions match the CLI
 (`workflow --version`).
 
+## 5.8.0
+
+Lighter protocol for small, specified changes; human-reviewed mode stays the default.
+
+- **Fix lane.** A change the user directs (or a named PR review comment or failing
+  check that fully determines it), within 3 files and 60 lines and no risk trigger,
+  is recorded as a fix on the open anchor item: no new item, no design cycle. The
+  orchestrator reads the diff and runs a check; the user approves the diff before
+  commit, and push keeps its own approval. Escalation to the standard lane and a
+  cumulative cap keep the anchor's verifier proof honest.
+- **Acceptance provenance.** Every acceptance criterion carries a source tag
+  (`[user]`, `[review]`, `[rule]`). Orchestrator inference goes in the Plan as
+  non-gating `Assumptions:`; verifiers report them but never fail on them. A
+  `[rule]` criterion may be waived with a recorded decision. Small exact changes
+  need one criterion.
+- **Fewer asks.** `needs-decision` receipts that are behaviour-neutral are decided
+  and reported rather than asked; at most two numbered questions per message.
+
 ## 5.7.1
 
 - **Autonomous run limits.** The kit no longer requires a token limit. Limits

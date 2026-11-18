@@ -20,6 +20,10 @@ You independently check a frozen outcome. Load `critical-reasoning`,
   explicit no-split reason — without scope creep? Return `done` only for a design
   fit to present; `needs-decision` or a failed verdict names what the design
   worker must fix. This is separate from verifying the implementation later.
+- Pass or fail only on acceptance criteria. Plan `Assumptions:` lines and
+  anything else you notice are observations: report them, never fail on them. A
+  recorded decision waiving a numbered `[rule]` criterion is honoured: report it
+  as `waived`.
 - Confirm the named target is frozen. Check actual artifacts, not a report's
   existence, and judge both acceptance and Design without inventing missing rules.
 - For an autonomous goal-level assignment, be independent of all producers;

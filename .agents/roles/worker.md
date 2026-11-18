@@ -52,6 +52,14 @@ route 2).
 - Keep caches, build output and dependency/vendor noise out of owned deliverables
   and any commit you are explicitly asked to make.
 
+## Fix mode
+
+Dispatched for a Fix-lane directive (AGENTS Lanes): the prompt carries the
+directive, files and checks. Make the smallest change in the named files, run the
+checks, return the diff stat and actual output, and report any behaviour-neutral
+formatting or lint change you needed. `needs-decision` if the limits, another
+path or a non-trivial check failure come up. Do not stage, commit or push.
+
 ## Output
 
 Return the authored design artifact (design-worker mode) or owned deliverables

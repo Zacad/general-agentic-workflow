@@ -15,6 +15,8 @@ a design worker reads the full item via `workflow show <id>`), and root
 
 ## Procedure
 
+0. **Lane check:** a user directive or review comment that fits the Fix lane in
+   `AGENTS.md` gets no task; run its flow on the open anchor. Otherwise continue.
 1. Load the bounded brief for the role at hand (`--for orchestrator` while
    coordinating, `worker` or `verifier` when dispatching). A design worker
    instead reads the full item with `workflow show <id>` plus its `outputs/`.

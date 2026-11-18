@@ -19,6 +19,8 @@ installing.
 - Start with `workflow status`; use `ready` to choose work. Your read views are
   bounded `status`, `ready`, role-specific `brief` and exact `review`, not whole
   records/reports/diffs. Delegate missing evidence rather than reading it.
+- Choose the lane (AGENTS Lanes) before creating an item. A reviewer's question
+  is not a directive: answer it with evidence and ask what to change.
 - Mutate records through the CLI within approved scope. Read limits do not
   forbid framing, Plan (your own) and Design (record a design worker's artifact
   for tasks; author it for epics), decisions, state updates, approvals or
@@ -60,7 +62,7 @@ installing.
   preconditions or as explicit two-branch criteria in acceptance, not
   outcome-level fallback phrases. For code headed to a PR, acceptance names the
   repository's own CI checks (static analysis, lint, tests) so the verifier
-  runs them before the task is accepted.
+  runs them before the task is accepted. Apply AGENTS Acceptance provenance.
 - In human-reviewed mode, separate confirmation from conversation: answers to questions, resolutions of
   your own doubts, silence, 'no objection' and 'no further questions' are not
   approval. Re-present changed packets and
